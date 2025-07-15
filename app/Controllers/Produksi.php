@@ -926,4 +926,43 @@ class Produksi extends BaseController
             return redirect()->back()->with('error', 'Gagal menghapus pengiriman: ' . $e->getMessage());
         }
     }
+    // ========== LAPORAN ==========
+    public function laporanIndex()
+    {
+        if (!in_groups('produksi')) {
+            return redirect()->to('login');
+        }
+        $data['tittle'] = 'Laporan Produksi';
+        return view('produksi/laporan/index', $data);
+    }
+
+    public function cetakPembelian()
+    {
+        // TODO: Implementasi cetak daftar pembelian
+        return view('produksi/laporan/cetak_pembelian');
+    }
+
+    public function cetakProduksi()
+    {
+        // TODO: Implementasi cetak daftar produksi
+        return view('produksi/laporan/cetak_produksi');
+    }
+
+    public function cetakPersediaanBahan()
+    {
+        // TODO: Implementasi cetak persediaan bahan
+        return view('produksi/laporan/cetak_persediaan_bahan');
+    }
+
+    public function cetakPersediaanBSJ()
+    {
+        // TODO: Implementasi cetak persediaan BSJ
+        return view('produksi/laporan/cetak_persediaan_bsj');
+    }
+
+    public function cetakPengiriman()
+    {
+        // TODO: Implementasi cetak pengiriman
+        return view('produksi/laporan/cetak_pengiriman');
+    }
 }

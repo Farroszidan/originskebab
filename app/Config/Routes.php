@@ -283,6 +283,16 @@ $routes->group('produksi', ['filter' => 'role:produksi'], function ($routes) {
     $routes->match(['get', 'post'], 'pengiriman/hapus/(:num)', 'Produksi::hapusPengiriman/$1'); // route hapus pengiriman, support GET & POST
 });
 
+// PRODUKSI LAPORAN
+$routes->group('produksi/laporan', ['filter' => 'role:produksi'], function ($routes) {
+    $routes->get('/', 'Produksi::laporanIndex');
+    $routes->get('cetak_pembelian', 'Produksi::cetakPembelian');
+    $routes->get('cetak_produksi', 'Produksi::cetakProduksi');
+    $routes->get('cetak_persediaan_bahan', 'Produksi::cetakPersediaanBahan');
+    $routes->get('cetak_persediaan_bsj', 'Produksi::cetakPersediaanBSJ');
+    $routes->get('cetak_pengiriman', 'Produksi::cetakPengiriman');
+});
+
 $routes->get('produksi/hpp/form', 'Produksi::formHPP', ['filter' => 'role:produksi']);
 $routes->post('produksi/hpp/simpan', 'Produksi::simpanHPP', ['filter' => 'role:produksi']);
 $routes->get('produksi/hpp', 'Produksi::indexHPP');
