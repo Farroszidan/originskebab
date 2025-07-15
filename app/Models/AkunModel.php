@@ -23,6 +23,19 @@ class AkunModel extends Model
         return $this->orderBy('kode_akun', 'ASC');
     }
 
+    public function getKasOutlets()
+    {
+        return $this->db->table('akun a')
+            ->select('a.saldo_awal, o.nama_outlet')
+            ->join('outlet o', 'o.id = a.kas_outlet_id')
+            ->whereIn('a.kode_akun', ['102', '103', '104', '105', '106']) // hanya kas outlet
+            ->orderBy('a.kode_akun', 'ASC')
+            ->get()
+            ->getResultArray();
+    }
+
+
+
     // ✅ Ambil daftar akun pendapatan (untuk tampilan detail)
     public function getPendapatan()
     {

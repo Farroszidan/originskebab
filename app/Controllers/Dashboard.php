@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\OutletModel;
 use App\Models\KasOutletModel;
 use App\Models\JualModel;
+use App\Models\AkunModel;
 
 class Dashboard extends BaseController
 {
@@ -13,20 +14,18 @@ class Dashboard extends BaseController
     {
         $user = user();
 
-        // Tentukan role
         if (in_groups('admin')) {
             $role = 'admin';
         } elseif (in_groups('penjualan')) {
             $role = 'penjualan';
-        } elseif (in_groups('produksi')) {
-            $role = 'produksi';
         } elseif (in_groups('keuangan')) {
             $role = 'keuangan';
+        } elseif (in_groups('produksi')) {
+            $role = 'produksi';
         } else {
             $role = 'unknown';
         }
 
-        // Ambil tanggal filter dari GET, default awal-akhir bulan ini
         $start = $this->request->getGet('start') ?? date('Y-m-01');
         $end   = $this->request->getGet('end') ?? date('Y-m-t');
 
@@ -35,13 +34,15 @@ class Dashboard extends BaseController
             'role'   => $role,
             'start'  => $start,
             'end'    => $end,
+            'kas_outlet' => []
         ];
 
-        // Untuk role admin: lihat total penjualan semua outlet
-        if ($role === 'admin') {
-            $jualModel = new JualModel();
-            $outletModel = new OutletModel();
+        $jualModel = new JualModel();
+        $outletModel = new OutletModel();
+        $akunModel = new AkunModel();
 
+        // Role admin
+        if ($role === 'admin') {
             $outlets = $outletModel->findAll();
             $penjualanPerOutlet = [];
             $totalSeluruhOutlet = 0;
@@ -54,29 +55,37 @@ class Dashboard extends BaseController
                     ->selectSum('grand_total')
                     ->first();
 
-                $totalOutlet = $total['grand_total'] ?? 0;
                 $penjualanPerOutlet[] = [
                     'nama_outlet' => $outlet['nama_outlet'],
-                    'total' => $totalOutlet
+                    'total'       => $total['grand_total'] ?? 0
                 ];
 
-                $totalSeluruhOutlet += $totalOutlet;
+                $totalSeluruhOutlet += $total['grand_total'] ?? 0;
             }
+
+            // Ambil saldo kas (uang laci) semua outlet dari tabel akun
+            $kas_outlet_admin = $akunModel
+                ->select('akun.saldo_awal, akun.nama_akun, outlet.nama_outlet')
+                ->join('outlet', 'outlet.id = akun.kas_outlet_id', 'left')
+                ->where('akun.jenis_akun', 'Aset')
+                ->where('akun.kas_outlet_id IS NOT NULL', null, false)
+                ->orderBy('akun.kode_akun', 'ASC')
+                ->findAll();
 
             $data['penjualanPerOutlet'] = $penjualanPerOutlet;
             $data['totalSeluruhOutlet'] = $totalSeluruhOutlet;
+            $data['kas_outlet_admin'] = $kas_outlet_admin;
         }
 
-        // Untuk role penjualan: tampilkan total outlet yang sedang login
+
+        // Role penjualan
         if ($role === 'penjualan') {
             $outlet_id = $user->outlet_id ?? null;
-            $outletModel = new OutletModel();
             $outlet = $outletModel->find($outlet_id);
 
             $data['outlet_id'] = $outlet_id;
             $data['nama_outlet'] = $outlet['nama_outlet'] ?? 'Outlet Tidak Diketahui';
 
-            $jualModel = new JualModel();
             $total = $jualModel
                 ->where('outlet_id', $outlet_id)
                 ->where('tgl_jual >=', $start)
@@ -84,13 +93,28 @@ class Dashboard extends BaseController
                 ->selectSum('grand_total')
                 ->first();
 
+            $kasOutlet = $akunModel
+                ->select('akun.saldo_awal, akun.nama_akun, outlet.nama_outlet')
+                ->join('outlet', 'outlet.id = akun.kas_outlet_id', 'left')
+                ->where('akun.jenis_akun', 'Aset')
+                ->where('akun.kas_outlet_id', $outlet_id)
+                ->findAll();
+
             $data['total_penjualan'] = $total['grand_total'] ?? 0;
+            $data['kas_outlet'] = $kasOutlet;
         }
 
-        // Untuk keuangan: tampilkan saldo kas outlet
+        // Role keuangan
         if ($role === 'keuangan') {
-            $kasModel = new KasOutletModel();
-            $data['kas_outlet'] = $kasModel->getKasWithOutlet();
+            $kas_outlet = $akunModel
+                ->select('akun.saldo_awal, akun.kode_akun, akun.nama_akun, outlet.nama_outlet')
+                ->join('outlet', 'outlet.id = akun.kas_outlet_id', 'left')
+                ->where('akun.jenis_akun', 'Aset')
+                ->where('akun.kas_outlet_id IS NOT NULL', null, false)
+                ->orderBy('akun.kode_akun', 'ASC')
+                ->findAll();
+
+            $data['kas_outlet'] = $kas_outlet;
         }
 
         return view('dashboard/index', $data);

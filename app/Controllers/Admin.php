@@ -20,6 +20,7 @@ use App\Models\DetailPembelianModel;
 use App\Models\BiayaOverheadModel;
 use App\Models\BiayaTenagaKerjaModel;
 use App\Models\KomposisiBahanBSJModel;
+use App\Models\KasOutletModel;
 use CodeIgniter\I18n\Time;
 
 class Admin extends BaseController
@@ -44,6 +45,52 @@ class Admin extends BaseController
         $data['tittle'] = 'SIOK | Dashboard';
         return view('admin/dashboard', $data);
     }
+
+    public function dashboard()
+    {
+        $start = $this->request->getGet('start') ?? date('Y-m-01');
+        $end   = $this->request->getGet('end') ?? date('Y-m-t');
+
+        $jualModel = new JualModel();
+        $outletModel = new OutletModel();
+        $kasModel = new KasOutletModel();
+
+        $outlets = $outletModel->findAll();
+        $penjualanPerOutlet = [];
+        $totalSeluruhOutlet = 0;
+
+        foreach ($outlets as $outlet) {
+            $total = $jualModel
+                ->where('outlet_id', $outlet['id'])
+                ->where('tgl_jual >=', $start)
+                ->where('tgl_jual <=', $end)
+                ->selectSum('grand_total')
+                ->first();
+
+            $totalOutlet = $total['grand_total'] ?? 0;
+            $penjualanPerOutlet[] = [
+                'nama_outlet' => $outlet['nama_outlet'],
+                'total'       => $totalOutlet
+            ];
+
+            $totalSeluruhOutlet += $totalOutlet;
+        }
+
+        $kas_outlet = $kasModel->getKasWithOutlet();
+
+        $data = [
+            'tittle'               => 'Dashboard Admin',
+            'role'                 => 'admin',
+            'start'                => $start,
+            'end'                  => $end,
+            'penjualanPerOutlet'   => $penjualanPerOutlet,
+            'totalSeluruhOutlet'   => $totalSeluruhOutlet,
+            'kas_outlet'           => $kas_outlet,
+        ];
+
+        return view('dashboard/index', $data);
+    }
+
 
     public function userlist()
     {
