@@ -42,7 +42,7 @@
     <table>
         <thead>
             <tr>
-                <th>Akun</th>
+                <th>Piutang</th>
                 <th>Jumlah Piutang (Rp)</th>
             </tr>
         </thead>

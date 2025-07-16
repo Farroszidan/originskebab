@@ -21,6 +21,8 @@ use App\Models\PermintaanDetailModel;
 use Myth\Auth\Models\UserModel;
 use App\Models\BSJModel;
 use App\Models\BahanModel;
+use App\Models\HPPModel;
+use App\Models\BtklModel;
 use CodeIgniter\I18n\Time;
 use Myth\Auth\Authorization\GroupModel;
 use function auth;
@@ -54,6 +56,7 @@ class ManajemenPenjualan extends BaseController
         return view('penjualan/dashboard', $data);
     }
 
+    // ===================================== MASTER END ===================================================== //
     public function inputOutlet()
     {
         if (!in_groups('admin')) {
@@ -161,6 +164,7 @@ class ManajemenPenjualan extends BaseController
         $data['tittle'] = 'SIOK | Varian Menu';
         return view('manajemen-penjualan/varian_menu', $data);
     }
+
     public function tambahvarian()
     {
         if (!in_groups('admin')) {
@@ -270,8 +274,6 @@ class ManajemenPenjualan extends BaseController
             ->with('success', 'Menu berhasil ditambahkan.');
     }
 
-
-
     public function editMenuPenjualan($id)
     {
         if (!in_groups('admin')) {
@@ -293,7 +295,6 @@ class ManajemenPenjualan extends BaseController
         return redirect()->to('manajemen-penjualan/master')->with('success', 'Menu berhasil diperbarui');
     }
 
-
     public function hapusMenuPenjualan($id)
     {
         if (!in_groups('admin')) {
@@ -305,7 +306,9 @@ class ManajemenPenjualan extends BaseController
 
         return redirect()->to('manajemen-penjualan/master')->with('success', 'Data menu berhasil dihapus');
     }
+    // ===================================== MASTER END ===================================================== //
 
+    // ===================================== INPUT TRANSAKSI START ===================================================== //
     public function input_transaksi()
     {
         if (!in_groups('admin') && !in_groups('penjualan')) {
@@ -635,8 +638,129 @@ class ManajemenPenjualan extends BaseController
         }
     }
 
+    public function daftarTransaksi()
+    {
+        $jualModel = new JualModel();
+        $outletModel = new OutletModel();
 
+        $selectedOutlet = $this->request->getGet('outlet_id');
+        $startDate = $this->request->getGet('start_date');
+        $endDate = $this->request->getGet('end_date');
 
+        $outlets = $outletModel->findAll();
+        $transaksi = $jualModel->getDaftarTransaksi($selectedOutlet, $startDate, $endDate);
+
+        return view('manajemen-penjualan/daftar_transaksi', [
+            'tittle' => 'Daftar Transaksi',
+            'transaksi' => $transaksi,
+            'outlets' => $outlets,
+            'selectedOutlet' => $selectedOutlet,
+            'startDate' => $startDate,
+            'endDate' => $endDate
+        ]);
+    }
+
+    public function detail($id)
+    {
+        $jualModel = new \App\Models\JualModel();
+        $detailModel = new \App\Models\DetailJualModel();
+
+        // Ambil transaksi utama
+        $transaksi = $jualModel
+            ->select('jual.*, outlet.nama_outlet')
+            ->join('outlet', 'outlet.id = jual.outlet_id', 'left')
+            ->where('jual.id', $id)
+            ->first();
+
+        if (!$transaksi) {
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('Transaksi tidak ditemukan');
+        }
+
+        // Ambil detail transaksi (langsung dari tabel detail_jual)
+        $detail = $detailModel
+            ->where('id_jual', $id)
+            ->findAll();
+
+        return view('manajemen-penjualan/detail_transaksi', [
+            'tittle' => 'Detail Transaksi',
+            'transaksi' => $transaksi,
+            'detail' => $detail
+        ]);
+    }
+    public function cetak($id)
+    {
+        $jualModel = new JualModel();
+        $detailModel = new DetailJualModel();
+
+        $transaksi = $jualModel
+            ->select('jual.*, outlet.nama_outlet')
+            ->join('outlet', 'outlet.id = jual.outlet_id', 'left')
+            ->where('jual.id', $id)
+            ->first();
+
+        $detail = $detailModel
+            ->select('detail_jual.*')  // cukup ambil semua kolom dari detail_jual
+            ->where('id_jual', $id)
+            ->findAll();
+
+        return view('manajemen-penjualan/cetak_transaksi', [
+            'transaksi' => $transaksi,
+            'detail' => $detail
+        ]);
+    }
+
+    public function cetakTerpilih()
+    {
+        $ids = $this->request->getPost('transaksi_ids');
+
+        if (!$ids || !is_array($ids)) {
+            return redirect()->back()->with('error', 'Tidak ada transaksi yang dipilih.');
+        }
+
+        $jualModel = new JualModel();
+        $detailModel = new DetailJualModel();
+
+        $transaksi_list = [];
+
+        foreach ($ids as $id) {
+            $transaksi = $jualModel
+                ->select('jual.*, outlet.nama_outlet')
+                ->join('outlet', 'outlet.id = jual.outlet_id', 'left')
+                ->where('jual.id', $id)
+                ->first();
+
+            if ($transaksi) {
+                $detail = $detailModel
+                    ->select('detail_jual.*')
+                    ->where('id_jual', $id)
+                    ->findAll();
+
+                $transaksi['detail'] = $detail;
+                $transaksi_list[] = $transaksi;
+            }
+        }
+
+        return view('manajemen-penjualan/cetak_terpilih', [
+            'transaksi_list' => $transaksi_list
+        ]);
+    }
+
+    public function cetakSemua()
+    {
+        $jualModel = new JualModel();
+        $outletId = $this->request->getGet('outlet_id');
+        $startDate = $this->request->getGet('start_date');
+        $endDate = $this->request->getGet('end_date');
+
+        $transaksi = $jualModel->getDaftarTransaksi($outletId, $startDate, $endDate);
+
+        return view('manajemen-penjualan/cetak_semua_transaksi', [
+            'transaksi' => $transaksi
+        ]);
+    }
+    // ===================================== INPUT TRANSAKSI END ===================================================== //
+
+    // ===================================== PERSEDIAAN OUTLET START ===================================================== //
 
     public function tambahPersediaanOutlet()
     {
@@ -760,7 +884,6 @@ class ManajemenPenjualan extends BaseController
             ->with('success', 'Stok berhasil ditambahkan ke outlet.');
     }
 
-
     public function persediaanOutlet()
     {
         $bsjModel = new \App\Models\BSJModel();
@@ -823,131 +946,6 @@ class ManajemenPenjualan extends BaseController
         ]);
     }
 
-
-
-
-    public function daftarTransaksi()
-    {
-        $jualModel = new JualModel();
-        $outletModel = new OutletModel();
-
-        $selectedOutlet = $this->request->getGet('outlet_id');
-        $startDate = $this->request->getGet('start_date');
-        $endDate = $this->request->getGet('end_date');
-
-        $outlets = $outletModel->findAll();
-        $transaksi = $jualModel->getDaftarTransaksi($selectedOutlet, $startDate, $endDate);
-
-        return view('manajemen-penjualan/daftar_transaksi', [
-            'tittle' => 'Daftar Transaksi',
-            'transaksi' => $transaksi,
-            'outlets' => $outlets,
-            'selectedOutlet' => $selectedOutlet,
-            'startDate' => $startDate,
-            'endDate' => $endDate
-        ]);
-    }
-
-    public function detail($id)
-    {
-        $jualModel = new \App\Models\JualModel();
-        $detailModel = new \App\Models\DetailJualModel();
-
-        // Ambil transaksi utama
-        $transaksi = $jualModel
-            ->select('jual.*, outlet.nama_outlet')
-            ->join('outlet', 'outlet.id = jual.outlet_id', 'left')
-            ->where('jual.id', $id)
-            ->first();
-
-        if (!$transaksi) {
-            throw new \CodeIgniter\Exceptions\PageNotFoundException('Transaksi tidak ditemukan');
-        }
-
-        // Ambil detail transaksi (langsung dari tabel detail_jual)
-        $detail = $detailModel
-            ->where('id_jual', $id)
-            ->findAll();
-
-        return view('manajemen-penjualan/detail_transaksi', [
-            'tittle' => 'Detail Transaksi',
-            'transaksi' => $transaksi,
-            'detail' => $detail
-        ]);
-    }
-    public function cetak($id)
-    {
-        $jualModel = new JualModel();
-        $detailModel = new DetailJualModel();
-
-        $transaksi = $jualModel
-            ->select('jual.*, outlet.nama_outlet')
-            ->join('outlet', 'outlet.id = jual.outlet_id', 'left')
-            ->where('jual.id', $id)
-            ->first();
-
-        $detail = $detailModel
-            ->select('detail_jual.*')  // cukup ambil semua kolom dari detail_jual
-            ->where('id_jual', $id)
-            ->findAll();
-
-        return view('manajemen-penjualan/cetak_transaksi', [
-            'transaksi' => $transaksi,
-            'detail' => $detail
-        ]);
-    }
-
-    public function cetakTerpilih()
-    {
-        $ids = $this->request->getPost('transaksi_ids');
-
-        if (!$ids || !is_array($ids)) {
-            return redirect()->back()->with('error', 'Tidak ada transaksi yang dipilih.');
-        }
-
-        $jualModel = new JualModel();
-        $detailModel = new DetailJualModel();
-
-        $transaksi_list = [];
-
-        foreach ($ids as $id) {
-            $transaksi = $jualModel
-                ->select('jual.*, outlet.nama_outlet')
-                ->join('outlet', 'outlet.id = jual.outlet_id', 'left')
-                ->where('jual.id', $id)
-                ->first();
-
-            if ($transaksi) {
-                $detail = $detailModel
-                    ->select('detail_jual.*')
-                    ->where('id_jual', $id)
-                    ->findAll();
-
-                $transaksi['detail'] = $detail;
-                $transaksi_list[] = $transaksi;
-            }
-        }
-
-        return view('manajemen-penjualan/cetak_terpilih', [
-            'transaksi_list' => $transaksi_list
-        ]);
-    }
-
-
-    public function cetakSemua()
-    {
-        $jualModel = new JualModel();
-        $outletId = $this->request->getGet('outlet_id');
-        $startDate = $this->request->getGet('start_date');
-        $endDate = $this->request->getGet('end_date');
-
-        $transaksi = $jualModel->getDaftarTransaksi($outletId, $startDate, $endDate);
-
-        return view('manajemen-penjualan/cetak_semua_transaksi', [
-            'transaksi' => $transaksi
-        ]);
-    }
-
     public function rekapStokHarian()
     {
         // Ambil parameter dari GET (karena di routes pakai GET & POST)
@@ -1006,6 +1004,9 @@ class ManajemenPenjualan extends BaseController
         return redirect()->back()->with('success', 'Rekap stok harian berhasil dihitung.');
     }
 
+    // ===================================== PERSEDIAAN OUTLET END ===================================================== //
+
+    // ===================================== LAIN - LAIN START ===================================================== //
     public function laporanHarian()
     {
         $tanggal = $this->request->getGet('tanggal') ?? date('Y-m-d');
@@ -1022,8 +1023,24 @@ class ManajemenPenjualan extends BaseController
         $outlets = $outletModel->findAll();
         $data = [];
 
+        // Tambahkan jenis pembayaran termasuk cash
+        $jenisPembayaran = [
+            'cash' => 0,
+            'qris' => 0,
+            'grabfood' => 0,
+            'gofood' => 0,
+            'shopeefood' => 0,
+        ];
+
+        // Persentase potongan untuk metode selain cash
+        $potonganPersen = [
+            'qris' => 0.007,
+            'grabfood' => 0.18,
+            'gofood' => 0.20,
+            'shopeefood' => 0.20,
+        ];
+
         foreach ($shifts as $shift) {
-            // Ambil semua pegawai yang bekerja di shift dan tanggal tertentu
             $pegawaiShifts = $pegawaiShiftModel
                 ->where('shift_id', $shift['id'])
                 ->where('tanggal', $tanggal)
@@ -1033,7 +1050,6 @@ class ManajemenPenjualan extends BaseController
                 $user = $userModel->find($ps['user_id']);
                 $outletUserId = $user['outlet_id'] ?? null;
 
-                // Filter berdasarkan outlet jika dipilih
                 if ($outletId && $outletUserId != $outletId) {
                     continue;
                 }
@@ -1044,6 +1060,14 @@ class ManajemenPenjualan extends BaseController
                     ->where('jam_jual >=', $ps['jam_mulai'])
                     ->where('jam_jual <=', $ps['jam_selesai'])
                     ->findAll();
+
+                foreach ($penjualan as $pj) {
+                    $jenis = strtolower($pj['jenis_cashless'] ?? 'cash');
+                    if (!array_key_exists($jenis, $jenisPembayaran)) {
+                        $jenis = 'cash'; // fallback
+                    }
+                    $jenisPembayaran[$jenis] += $pj['grand_total'];
+                }
 
                 $pengeluaran = $buktiPembelianModel
                     ->where('outlet_id', $outletUserId)
@@ -1065,12 +1089,28 @@ class ManajemenPenjualan extends BaseController
             }
         }
 
-        return view('manajemen-penjualan/laporan_harian', [
+        // Hitung potongan & bersih
+        $rincianPotongan = [];
+        foreach ($jenisPembayaran as $jenis => $total) {
+            $potongan = isset($potonganPersen[$jenis]) ? $total * $potonganPersen[$jenis] : 0;
+            $netto = $total - $potongan;
+
+            $rincianPotongan[] = [
+                'jenis' => ucfirst($jenis),
+                'bruto' => $total,
+                'potongan' => $potongan,
+                'netto' => $netto,
+                'persen' => $jenis === 'cash' ? 0 : $potonganPersen[$jenis] * 100,
+            ];
+        }
+
+        return view('manajemen-penjualan/input_laporan_shift', [
             'tittle' => 'SIOK | Laporan Harian Shift',
             'laporan' => $data,
             'tanggal' => $tanggal,
             'outlets' => $outlets,
-            'selectedOutlet' => $outletId
+            'selectedOutlet' => $outletId,
+            'rincianPotongan' => $rincianPotongan,
         ]);
     }
 
@@ -1084,32 +1124,6 @@ class ManajemenPenjualan extends BaseController
         }
         return $id ? 'Unknown' : 'Semua Outlet';
     }
-
-
-    // public function cetakLaporan()
-    // {
-    //     $tanggal = $this->request->getGet('tanggal');
-    //     $outlet_id = $this->request->getGet('outlet_id');
-
-    //     if (!$tanggal || !$outlet_id) {
-    //         return redirect()->back()->with('error', 'Tanggal dan outlet harus diisi.');
-    //     }
-
-    //     $logModel = new LogPersediaanHarianModel();
-    //     $logs = $logModel->where([
-    //         'tanggal' => $tanggal,
-    //         'outlet_id' => $outlet_id
-    //     ])->findAll();
-
-    //     $outletModel = new OutletModel();
-    //     $outlet = $outletModel->find($outlet_id);
-
-    //     return view('admin/persediaan/cetak_laporan', [
-    //         'logs' => $logs,
-    //         'tanggal' => $tanggal,
-    //         'outlet' => $outlet
-    //     ]);
-    // }
 
     public function hapusLaporanShift($id)
     {
@@ -1125,8 +1139,6 @@ class ManajemenPenjualan extends BaseController
         return redirect()->to('/manajemen-penjualan/laporanpenjualan?tanggal=' . $this->request->getPost('tanggal') . '&outlet_id=' . $this->request->getPost('outlet_id'))
             ->with('success', 'Laporan shift berhasil dihapus.');
     }
-
-
 
     public function hapusLaporanHarian()
     {
@@ -1181,7 +1193,9 @@ class ManajemenPenjualan extends BaseController
 
         return redirect()->back()->with('success', 'Stok berhasil ditambahkan dan direkap.');
     }
+    // ===================================== LAIN - LAIN START ===================================================== //
 
+    // =========================================== LAPORAN PENJUALAN START ============================================//
     public function laporanPerTanggal()
     {
         if (!in_groups(['admin', 'penjualan', 'keuangan'])) {
@@ -1192,28 +1206,24 @@ class ManajemenPenjualan extends BaseController
         $outletModel = new OutletModel();
         $laporanShiftModel = new LaporanShiftModel();
 
-        // Ambil parameter GET
-        $tanggalAwal = $this->request->getGet('tanggal_awal');
-        $tanggalAkhir = $this->request->getGet('tanggal_akhir');
+        // Ambil parameter GET, default hari ini
+        $tanggalAwal = $this->request->getGet('tanggal_awal') ?? date('Y-m-d');
+        $tanggalAkhir = $this->request->getGet('tanggal_akhir') ?? date('Y-m-d');
         $outletId = $this->request->getGet('outlet_id');
 
-        $isFiltered = $tanggalAwal && $tanggalAkhir; // Cek apakah tombol "Tampilkan" ditekan
+        $isFiltered = true;
 
-        // Penjualan hanya boleh lihat outlet-nya sendiri
         if (in_groups('penjualan')) {
             $outletId = $user->outlet_id;
         }
 
+        // Ambil data laporan shift
         $query = $laporanShiftModel
             ->select('laporan_shift.*, outlet.nama_outlet, shift_kerja.nama_shift, shift_kerja.jam_mulai, shift_kerja.jam_selesai')
             ->join('outlet', 'outlet.id = laporan_shift.outlet_id', 'left')
-            ->join('shift_kerja', 'shift_kerja.id = laporan_shift.shift_id', 'left');
-
-        if ($isFiltered) {
-            // Filter berdasarkan tanggal jika user sudah menekan tombol
-            $query->where('laporan_shift.tanggal >=', $tanggalAwal)
-                ->where('laporan_shift.tanggal <=', $tanggalAkhir);
-        }
+            ->join('shift_kerja', 'shift_kerja.id = laporan_shift.shift_id', 'left')
+            ->where('laporan_shift.tanggal >=', $tanggalAwal)
+            ->where('laporan_shift.tanggal <=', $tanggalAkhir);
 
         if ($outletId) {
             $query->where('laporan_shift.outlet_id', $outletId);
@@ -1229,20 +1239,65 @@ class ManajemenPenjualan extends BaseController
             $grandTotalPengeluaran += $row['total_pengeluaran'];
         }
 
+        // Rangkuman per metode pembayaran
+        $jenisPembayaran = [
+            'cash' => 0,
+            'qris' => 0,
+            'grabfood' => 0,
+            'gofood' => 0,
+            'shopeefood' => 0,
+        ];
+
+        $potonganPersen = [
+            'qris' => 0.007,
+            'grabfood' => 0.18,
+            'gofood' => 0.20,
+            'shopeefood' => 0.20,
+        ];
+
+        foreach ($laporan as $row) {
+            $jenis = strtolower($row['jenis_cashless'] ?? 'cash');
+            $jumlah = floatval($row['total_penjualan']);
+
+            if (!array_key_exists($jenis, $jenisPembayaran)) {
+                $jenis = 'cash';
+            }
+
+            $jenisPembayaran[$jenis] += $jumlah;
+        }
+
+        // Siapkan data untuk tabel rincian metode
+        $rincianMetode = [];
+        foreach ($jenisPembayaran as $jenis => $bruto) {
+            $persen = $potonganPersen[$jenis] ?? 0;
+            $potongan = $bruto * $persen;
+            $netto = $bruto - $potongan;
+
+            $rincianMetode[] = [
+                'jenis' => ucfirst($jenis),
+                'bruto' => $bruto,
+                'persen' => $persen * 100,
+                'potongan' => $potongan,
+                'netto' => $netto,
+            ];
+        }
+
+        // Kirim ke view
         $data = [
             'tittle' => 'SIOK | Laporan Penjualan',
             'laporan' => $laporan,
-            'tanggal_awal' => $tanggalAwal ?? '',
-            'tanggal_akhir' => $tanggalAkhir ?? '',
+            'tanggal_awal' => $tanggalAwal,
+            'tanggal_akhir' => $tanggalAkhir,
             'selectedOutlet' => $outletId,
             'grandTotalPenjualan' => $grandTotalPenjualan,
             'grandTotalPengeluaran' => $grandTotalPengeluaran,
             'selisih' => $grandTotalPenjualan - $grandTotalPengeluaran,
             'isSingleDate' => $tanggalAwal === $tanggalAkhir,
             'isFiltered' => $isFiltered,
+            'rincianMetode' => $rincianMetode, // ⬅ dikirim ke view
         ];
 
-        // Tambahkan daftar outlet sesuai role
+        // Tambahkan outlet untuk dropdown jika role admin/keuangan
         if (in_groups(['admin', 'keuangan'])) {
             $data['outlets'] = $outletModel->findAll();
         } else {
@@ -1254,7 +1309,6 @@ class ManajemenPenjualan extends BaseController
 
         return view('manajemen-penjualan/laporan_penjualan', $data);
     }
-
 
     public function cetakLaporanPenjualan()
     {
@@ -1299,13 +1353,15 @@ class ManajemenPenjualan extends BaseController
             'outletNama' => $outletNama,
         ]);
     }
+    // =========================================== LAPORAN PENJUALAN END ============================================//
 
+    // =========================================== LAPORAN SHIFT START ============================================//
     public function inputLaporanShift()
     {
         $outletModel = new OutletModel();
         $shiftModel = new ShiftKerjaModel();
-
         $user = user();
+
         $data = [
             'shifts' => $shiftModel->findAll(),
             'tittle' => 'SIOK | Laporan Shift',
@@ -1317,14 +1373,13 @@ class ManajemenPenjualan extends BaseController
             $outletId = $user->outlet_id ?? null;
             $outlet = $outletModel->find($outletId);
 
-            $data['outlets'] = []; // agar tetap ada key-nya di view
+            $data['outlets'] = [];
             $data['outlet_id'] = $outletId;
             $data['nama_outlet'] = $outlet['nama_outlet'] ?? 'Outlet Tidak Diketahui';
         }
 
         return view('manajemen-penjualan/input_laporan_shift', $data);
     }
-
 
     public function getDataShift()
     {
@@ -1338,18 +1393,16 @@ class ManajemenPenjualan extends BaseController
         $detailModel = new \App\Models\DetailPembelianOperasionalModel();
 
         $shift = $shiftModel->find($shiftId);
-        $jamMulai = $shift['jam_mulai']; // format: HH:MM:SS
+        $jamMulai = $shift['jam_mulai'];
         $jamSelesai = $shift['jam_selesai'];
 
         $penjualanQuery = $jualModel->where('outlet_id', $outletId);
 
         if ($jamMulai < $jamSelesai) {
-            // shift biasa di hari yang sama
             $penjualanQuery->where('tgl_jual', $tanggal)
                 ->where('jam_jual >=', $jamMulai)
                 ->where('jam_jual <=', $jamSelesai);
         } else {
-            // shift malam, menyilang ke hari berikutnya
             $tanggalBesok = date('Y-m-d', strtotime($tanggal . ' +1 day'));
             $penjualanQuery->groupStart()
                 ->groupStart()
@@ -1364,9 +1417,51 @@ class ManajemenPenjualan extends BaseController
         }
 
         $penjualan = $penjualanQuery->findAll();
-        $totalPenjualan = array_sum(array_column($penjualan, 'grand_total'));
 
-        // Ambil pembelian operasional
+        // Jenis pembayaran & potongan
+        $jenisPembayaran = [
+            'cash' => 0,
+            'qris' => 0,
+            'grabfood' => 0,
+            'gofood' => 0,
+            'shopeefood' => 0,
+        ];
+        $potonganPersen = [
+            'qris' => 0.007,
+            'grabfood' => 0.18,
+            'gofood' => 0.20,
+            'shopeefood' => 0.20,
+        ];
+
+        foreach ($penjualan as $pj) {
+            $jenis = strtolower($pj['jenis_cashless'] ?? 'cash');
+            if (!array_key_exists($jenis, $jenisPembayaran)) {
+                $jenis = 'cash';
+            }
+            $jenisPembayaran[$jenis] += $pj['grand_total'];
+        }
+
+        $totalBruto = 0;
+        $totalPotongan = 0;
+        $rincianPotongan = [];
+
+        foreach ($jenisPembayaran as $jenis => $total) {
+            $potongan = isset($potonganPersen[$jenis]) ? $total * $potonganPersen[$jenis] : 0;
+            $netto = $total - $potongan;
+
+            $totalBruto += $total;
+            $totalPotongan += $potongan;
+
+            $rincianPotongan[] = [
+                'jenis' => ucfirst($jenis),
+                'bruto' => $total,
+                'potongan' => $potongan,
+                'netto' => $netto,
+                'persen' => $jenis === 'cash' ? 0 : $potonganPersen[$jenis] * 100,
+            ];
+        }
+
+        // Pengeluaran
         $pembelian = $pembelianModel
             ->where('outlet_id', $outletId)
             ->where('tanggal', $tanggal)
@@ -1389,9 +1484,12 @@ class ManajemenPenjualan extends BaseController
         }
 
         return $this->response->setJSON([
-            'total_penjualan' => $totalPenjualan,
+            'total_penjualan' => $totalBruto,
+            'total_potongan' => $totalPotongan,
+            'total_netto' => $totalBruto - $totalPotongan,
             'total_pengeluaran' => $totalPengeluaran,
             'keterangan_pengeluaran' => implode(", ", $keterangan),
+            'rincian_penjualan' => $rincianPotongan
         ]);
     }
 
@@ -1399,14 +1497,12 @@ class ManajemenPenjualan extends BaseController
     {
         $laporanModel = new LaporanShiftModel();
 
-        // Validasi sederhana bisa ditambahkan jika perlu
-
         $data = [
             'tanggal' => $this->request->getPost('tanggal'),
             'outlet_id' => $this->request->getPost('outlet_id'),
             'shift_id' => $this->request->getPost('shift_id'),
             'user_id' => user_id(),
-            'total_penjualan' => floatval($this->request->getPost('total_penjualan')),
+            'total_penjualan' => floatval($this->request->getPost('total_penjualan')), // gunakan total netto
             'total_pengeluaran' => floatval($this->request->getPost('total_pengeluaran')),
             'keterangan_pengeluaran' => $this->request->getPost('keterangan_pengeluaran'),
         ];
@@ -1415,87 +1511,79 @@ class ManajemenPenjualan extends BaseController
 
         return redirect()->back()->with('success', 'Laporan shift berhasil disimpan.');
     }
+    // =========================================== LAPORAN SHIFT END ============================================//
 
-    // ===================================== BTKL ===================================================== //
+    // ===================================== BTKL START ===================================================== //
     public function btklForm()
     {
-        // Hanya admin yang bisa akses
         if (!in_groups(['admin', 'keuangan'])) {
             return redirect()->to('login');
         }
 
-        $data['tittle'] = 'SIOK | BTKL Form';
-        return view('manajemen-penjualan/btkl_form', $data);
-    }
-
-    public function hitungBTKL()
-    {
-        if (!in_groups(['admin', 'keuangan'])) {
-            return redirect()->to('login');
-        }
+        $gaji_per_shift = 40000;
         $start = $this->request->getPost('start_date');
         $end = $this->request->getPost('end_date');
-        $gaji_per_shift = 40000;
-
-        $db = \Config\Database::connect();
-        $builder = $db->table('users');
-        $builder->select('users.id, users.username, users.outlet_id');
-        $builder->join('auth_groups_users', 'auth_groups_users.user_id = users.id');
-        $builder->join('auth_groups', 'auth_groups.id = auth_groups_users.group_id');
-        $builder->where('auth_groups.name', 'penjualan');
-        $users = $builder->get()->getResult();
-
-        $pegawaiShiftModel = new \App\Models\PegawaiShiftModel();
-        $btklModel = new \App\Models\BTKLModel();
-
         $results = [];
+        $totalKeseluruhan = 0;
 
-        foreach ($users as $user) {
-            $jumlahShift = $pegawaiShiftModel
-                ->where('user_id', $user->id)
-                ->where('tanggal >=', $start)
-                ->where('tanggal <=', $end)
-                ->countAllResults();
+        if ($start && $end) {
+            $db = \Config\Database::connect();
+            $builder = $db->table('users');
+            $builder->select('users.id, users.username, users.outlet_id');
+            $builder->join('auth_groups_users', 'auth_groups_users.user_id = users.id');
+            $builder->join('auth_groups', 'auth_groups.id = auth_groups_users.group_id');
+            $builder->where('auth_groups.name', 'penjualan');
+            $users = $builder->get()->getResult();
 
-            if ($jumlahShift > 0) {
-                $totalGaji = $jumlahShift * $gaji_per_shift;
+            $pegawaiShiftModel = new \App\Models\PegawaiShiftModel();
+            $btklModel = new \App\Models\BTKLModel();
 
-                // Cek apakah data sudah ada
-                $exists = $btklModel->where([
-                    'user_id' => $user->id,
-                    'periode_mulai' => $start,
-                    'periode_selesai' => $end
-                ])->first();
+            foreach ($users as $user) {
+                $jumlahShift = $pegawaiShiftModel
+                    ->where('user_id', $user->id)
+                    ->where('tanggal >=', $start)
+                    ->where('tanggal <=', $end)
+                    ->countAllResults();
 
-                if (!$exists) {
-                    $btklModel->insert([
+                if ($jumlahShift > 0) {
+                    $totalGaji = $jumlahShift * $gaji_per_shift;
+                    $totalKeseluruhan += $totalGaji;
+
+                    $exists = $btklModel->where([
                         'user_id' => $user->id,
-                        'outlet_id' => $user->outlet_id,
-                        'jumlah_shift' => $jumlahShift,
-                        'gaji_per_shift' => $gaji_per_shift,
-                        'total_gaji' => $totalGaji,
                         'periode_mulai' => $start,
                         'periode_selesai' => $end
-                    ]);
-                }
+                    ])->first();
 
-                $results[] = [
-                    'fullname' => $user->username,
-                    'total_shift' => $jumlahShift,
-                    'total_gaji' => $totalGaji,
-                ];
+                    if (!$exists) {
+                        $btklModel->insert([
+                            'user_id' => $user->id,
+                            'outlet_id' => $user->outlet_id,
+                            'jumlah_shift' => $jumlahShift,
+                            'gaji_per_shift' => $gaji_per_shift,
+                            'total_gaji' => $totalGaji,
+                            'periode_mulai' => $start,
+                            'periode_selesai' => $end
+                        ]);
+                    }
+
+                    $results[] = [
+                        'username' => $user->username,
+                        'jumlah_shift' => $jumlahShift,
+                        'total_gaji' => $totalGaji,
+                    ];
+                }
             }
         }
 
-        $data = [
-            'tittle' => 'Hasil Perhitungan BTKL',
+        return view('manajemen-penjualan/btkl_form', [
+            'tittle' => 'Perhitungan Gaji Shift (BTKL)',
+            'start' => $start,
+            'end' => $end,
             'results' => $results,
             'gaji_per_shift' => $gaji_per_shift,
-            'start' => $start,
-            'end' => $end
-        ];
-
-        return view('manajemen-penjualan/btkl_hasil', $data);
+            'total_keseluruhan' => $totalKeseluruhan
+        ]);
     }
 
     public function btkl()
@@ -1503,26 +1591,29 @@ class ManajemenPenjualan extends BaseController
         if (!in_groups(['admin', 'keuangan'])) {
             return redirect()->to('login');
         }
+
         helper('number');
 
-        $pegawaiShiftModel = new \App\Models\PegawaiShiftModel();
+        $btklModel = new \App\Models\BTKLModel();
         $userModel = new \Myth\Auth\Models\UserModel();
-        $outletModel = new \App\Models\OutletModel(); // pastikan ada model OutletModel
+        $outletModel = new \App\Models\OutletModel();
 
-        // Ambil data filter dari GET
+        // Ambil filter dari GET
         $start = $this->request->getGet('start_date');
         $end = $this->request->getGet('end_date');
         $outletFilter = $this->request->getGet('outlet_id');
         $userFilter = $this->request->getGet('user_id');
 
-        // Ambil semua outlet
+        // Ambil semua outlet untuk filter
         $outlets = $outletModel->findAll();
 
-        // Ambil user berdasarkan outlet (jika dipilih)
+        // Ambil user role penjualan
         $userQuery = $userModel
             ->select('id, username, outlet_id')
             ->whereIn('id', function ($builder) {
-                $builder->select('user_id')->from('auth_groups_users')->where('group_id', 3); // role penjualan
+                $builder->select('user_id')
+                    ->from('auth_groups_users')
+                    ->where('group_id', 3); // role penjualan
             });
 
         if ($outletFilter) {
@@ -1531,44 +1622,44 @@ class ManajemenPenjualan extends BaseController
 
         $users = $userQuery->findAll();
 
-        // Query utama shift
-        $pegawaiShiftModel->select('pegawai_shift.*, users.username, users.outlet_id, outlet.nama_outlet')
-            ->join('users', 'users.id = pegawai_shift.user_id')
-            ->join('outlet', 'outlet.id = users.outlet_id') // JOIN ke tabel outlet
-            ->whereIn('users.id', function ($builder) {
-                $builder->select('user_id')->from('auth_groups_users')->where('group_id', 3);
-            });
+        // Ambil data dari tabel btkl
+        $btklModel->select('btkl.*, users.username, outlet.nama_outlet')
+            ->join('users', 'users.id = btkl.user_id')
+            ->join('outlet', 'outlet.id = users.outlet_id');
 
         if ($start && $end) {
-            $pegawaiShiftModel->where('tanggal >=', $start)->where('tanggal <=', $end);
+            $btklModel->where('periode_mulai', $start)
+                ->where('periode_selesai', $end);
         }
 
         if ($outletFilter) {
-            $pegawaiShiftModel->where('users.outlet_id', $outletFilter);
+            $btklModel->where('btkl.outlet_id', $outletFilter);
         }
 
         if ($userFilter) {
-            $pegawaiShiftModel->where('users.id', $userFilter);
+            $btklModel->where('btkl.user_id', $userFilter);
         }
 
-        $pegawaiShiftModel->orderBy('users.outlet_id', 'ASC')->orderBy('tanggal', 'DESC');
+        $btklModel->orderBy('btkl.outlet_id', 'ASC')->orderBy('btkl.total_gaji', 'DESC');
 
-        $shifts = $pegawaiShiftModel->findAll();
+        $btklData = $btklModel->findAll();
 
-        // Hitung rekap shift dan gaji
+        // Susun rekap
         $rekap = [];
-        foreach ($shifts as $shift) {
-            $outlet = $shift['nama_outlet']; // gunakan nama_outlet
-            $user = $shift['username'];
+        foreach ($btklData as $row) {
+            $outlet = $row['nama_outlet'];
+            $user = $row['username'];
 
             if (!isset($rekap[$outlet])) $rekap[$outlet] = [];
-            if (!isset($rekap[$outlet][$user])) $rekap[$outlet][$user] = 0;
 
-            $rekap[$outlet][$user]++;
+            $rekap[$outlet][$user] = [
+                'total_shift' => $row['jumlah_shift'],
+                'total_gaji' => $row['total_gaji'],
+            ];
         }
 
-        $data = [
-            'tittle' => 'Perhitungan BTKL Gaji',
+        return view('manajemen-penjualan/btkl', [
+            'tittle' => 'Daftar BTKL yang Tersimpan',
             'rekap' => $rekap,
             'gaji_per_shift' => 40000,
             'outlets' => $outlets,
@@ -1579,11 +1670,11 @@ class ManajemenPenjualan extends BaseController
                 'outlet_id' => $outletFilter,
                 'user_id' => $userFilter,
             ]
-        ];
-
-        return view('manajemen-penjualan/btkl', $data);
+        ]);
     }
+    // ===================================== BTKL END ===================================================== //
 
+    // ===================================== INPUT JADWAL SHIFT ===================================================== //
     public function inputShift()
     {
         if (!in_groups(['admin', 'keuangan', 'penjualan'])) {
@@ -1592,25 +1683,56 @@ class ManajemenPenjualan extends BaseController
 
         $db = \Config\Database::connect();
         $shiftModel = new ShiftKerjaModel();
-
-        // Ambil data outlet
         $outletModel = new \App\Models\OutletModel();
-        $outlets = $outletModel->findAll(); // hasil: array asosiatif
 
-        // Ambil user berdasarkan grup penjualan
-        $builder = $db->table('users');
-        $builder->select('users.id, users.username, users.outlet_id');
-        $builder->join('auth_groups_users', 'auth_groups_users.user_id = users.id');
-        $builder->join('auth_groups', 'auth_groups.id = auth_groups_users.group_id');
-        $builder->where('auth_groups.name', 'penjualan');
-        $users = $builder->get()->getResultArray();
+        $user = user(); // user login
+        $userId = $user->id;
+        $outletId = $user->outlet_id;
 
-        $data = [
-            'outlets' => $outlets,
-            'users'   => $users,
-            'shifts'  => $shiftModel->findAll(),
-            'tittle'  => 'Input Jadwal Shift'
-        ];
+        // Ambil semua shift
+        $shifts = $shiftModel->findAll();
+
+        // Cek role login
+        if (in_groups('penjualan')) {
+            // Jika penjualan, hanya tampilkan outlet sesuai user
+            $outlet = $outletModel->find($outletId);
+
+            // Ambil hanya user penjualan di outlet tersebut
+            $builder = $db->table('users');
+            $builder->select('users.id, users.username, users.outlet_id');
+            $builder->join('auth_groups_users', 'auth_groups_users.user_id = users.id');
+            $builder->join('auth_groups', 'auth_groups.id = auth_groups_users.group_id');
+            $builder->where('auth_groups.name', 'penjualan');
+            $builder->where('users.outlet_id', $outletId);
+            $users = $builder->get()->getResultArray();
+
+            $data = [
+                'outlets' => [$outlet], // satu outlet saja
+                'users'   => $users,
+                'shifts'  => $shifts,
+                'readonly_outlet' => true,
+                'tittle'  => 'Input Jadwal Shift'
+            ];
+        } else {
+            // Untuk admin dan keuangan, semua data
+            $outlets = $outletModel->findAll();
+
+            $users = $db->table('users')
+                ->select('users.id, users.username, users.outlet_id')
+                ->join('auth_groups_users', 'auth_groups_users.user_id = users.id')
+                ->where('auth_groups_users.group_id', 3) // pastikan 3 = group_id penjualan
+                ->where('users.outlet_id', $outletId)
+                ->get()
+                ->getResultArray();
+
+            $data = [
+                'outlets' => $outlets,
+                'users'   => $users,
+                'shifts'  => $shifts,
+                'readonly_outlet' => false,
+                'tittle'  => 'Input Jadwal Shift'
+            ];
+        }
 
         return view('manajemen-penjualan/input_shift', $data);
     }
@@ -1620,28 +1742,51 @@ class ManajemenPenjualan extends BaseController
         if (!in_groups(['admin', 'keuangan', 'penjualan'])) {
             return redirect()->to('login');
         }
+
         $pegawaiShiftModel = new \App\Models\PegawaiShiftModel();
+        $outletModel = new \App\Models\OutletModel();
 
-        $start = $this->request->getGet('start_date');
-        $end   = $this->request->getGet('end_date');
+        $user = user();
+        $userOutletId = $user->outlet_id;
 
+        // Ambil filter tanggal
+        $start = $this->request->getGet('start_date') ?? date('Y-m-d');
+        $end   = $this->request->getGet('end_date') ?? date('Y-m-d');
+
+        // Ambil filter outlet (jika admin/keuangan)
+        $outletFilter = $this->request->getGet('outlet_id');
+
+        // Mulai query builder
         $builder = $pegawaiShiftModel
-            ->select('pegawai_shift.*, users.username, shift_kerja.nama_shift, shift_kerja.jam_mulai, shift_kerja.jam_selesai')
+            ->select('pegawai_shift.*, users.username, shift_kerja.nama_shift, shift_kerja.jam_mulai, shift_kerja.jam_selesai, users.outlet_id, outlet.nama_outlet')
             ->join('users', 'users.id = pegawai_shift.user_id')
-            ->join('shift_kerja', 'shift_kerja.id = pegawai_shift.shift_id');
+            ->join('shift_kerja', 'shift_kerja.id = pegawai_shift.shift_id')
+            ->join('outlet', 'outlet.id = users.outlet_id')
+            ->where('pegawai_shift.tanggal >=', $start)
+            ->where('pegawai_shift.tanggal <=', $end);
 
-        // Tambahkan filter jika tanggal dipilih
-        if ($start && $end) {
-            $builder->where('pegawai_shift.tanggal >=', $start)
-                ->where('pegawai_shift.tanggal <=', $end);
+        // Filter outlet berdasarkan role
+        if (in_groups('penjualan')) {
+            // Hanya data dari outlet user login
+            $builder->where('users.outlet_id', $userOutletId);
+        } elseif ($outletFilter) {
+            // Jika admin/keuangan dan memilih outlet tertentu
+            $builder->where('users.outlet_id', $outletFilter);
         }
 
-        $data['tittle'] = 'Data Jadwal Shift';
-        $data['shifts'] = $builder->orderBy('pegawai_shift.tanggal', 'DESC')->findAll();
+        $shifts = $builder->orderBy('pegawai_shift.tanggal', 'DESC')->findAll();
+
+        $data = [
+            'tittle' => 'Data Jadwal Shift',
+            'shifts' => $shifts,
+            'start_date' => $start,
+            'end_date' => $end,
+            'outlet_id' => $outletFilter ?? '',
+            'outlets' => (in_groups(['admin', 'keuangan'])) ? $outletModel->findAll() : [],
+        ];
 
         return view('manajemen-penjualan/data_shift', $data);
     }
-
 
     public function deleteShift($id)
     {
@@ -1656,10 +1801,9 @@ class ManajemenPenjualan extends BaseController
         $shiftId  = $this->request->getPost('shift_id');
         $tanggal  = $this->request->getPost('tanggal');
 
-        // Ambil jam dari shift_kerja
+        // Validasi shift
         $shiftModel = new \App\Models\ShiftKerjaModel();
-        $shift      = $shiftModel->find($shiftId);
-
+        $shift = $shiftModel->find($shiftId);
         if (!$shift) {
             return redirect()->back()->with('error', 'Shift tidak ditemukan');
         }
@@ -1675,22 +1819,27 @@ class ManajemenPenjualan extends BaseController
                 'jam_selesai' => $shift['jam_selesai'],
             ]);
         }
-
         return redirect()->to('manajemen-penjualan/input-shift')->with('success', 'Shift berhasil disimpan');
     }
 
     public function getUsersByOutlet($outletId)
     {
-        $users = $this->db->table('users')
-            ->select('id, username')
-            ->where('outlet_id', $outletId)
+        $db = \Config\Database::connect();
+
+        $users = $db->table('users')
+            ->select('users.id, users.username')
+            ->join('auth_groups_users', 'auth_groups_users.user_id = users.id')
+            ->join('auth_groups', 'auth_groups.id = auth_groups_users.group_id')
+            ->where('auth_groups.name', 'penjualan')
+            ->where('users.outlet_id', $outletId)
             ->get()
             ->getResultArray();
 
         return $this->response->setJSON($users);
     }
+    // ===================================== INPUT JADWAL SHIFT END ===================================================== //
 
-    // ====================== Pembelian Operasional ===================== //
+    // ====================== PEMBELIAN OPERASIONAL START ===================== //
     public function pembelian_operasional()
     {
         $user = user();
@@ -1705,6 +1854,7 @@ class ManajemenPenjualan extends BaseController
         $endDate = $this->request->getGet('end_date');
 
         $builder = $pembelianModel
+            ->select('pembelian_operasional.*, outlet.nama_outlet')
             ->join('outlet', 'outlet.id = pembelian_operasional.outlet_id');
 
         // Jika admin atau keuangan, bisa filter outlet
@@ -1777,7 +1927,6 @@ class ManajemenPenjualan extends BaseController
         ]);
     }
 
-
     public function simpan_pembelian_operasional()
     {
         $pembelianModel = new PembelianOperasionalModel();
@@ -1820,7 +1969,9 @@ class ManajemenPenjualan extends BaseController
 
         return redirect()->to(base_url('manajemen-penjualan/pembelian-operasional'))->with('success', 'Pembelian berhasil disimpan.');
     }
+    // ===================================== PEMEELIAN OPERASIONAL END ===================================================== //
 
+    // ===================================== PERMINTAAN START ===================================================== //
     // 1. Daftar permintaan
     public function permintaan()
     {
@@ -1882,7 +2033,6 @@ class ManajemenPenjualan extends BaseController
         ]);
     }
 
-
     // 2. Form input permintaan
     public function formPermintaan()
     {
@@ -1905,7 +2055,6 @@ class ManajemenPenjualan extends BaseController
             'bahan'       => $barangBahan,
         ]);
     }
-
 
     // 3. Simpan permintaan
     public function storePermintaan()
@@ -1956,9 +2105,6 @@ class ManajemenPenjualan extends BaseController
         return redirect()->to('/manajemen-penjualan/permintaan')->with('success', 'Permintaan berhasil dikirim.');
     }
 
-
-
-
     // 4. Detail permintaan
     public function detailPermintaan($id)
     {
@@ -1984,4 +2130,80 @@ class ManajemenPenjualan extends BaseController
 
         return redirect()->to('/manajemen-penjualan/permintaan')->with('success', 'Permintaan berhasil dihapus.');
     }
+
+    // ===================================== PERMINTAAN END ===================================================== //
+
+    // ===================================== HPP PENJUALAN START ===================================================== //
+    // Hpp Penjualan
+    public function hppPenjualan()
+    {
+        $start = $this->request->getGet('start');
+        $end   = $this->request->getGet('end');
+
+        if ($start && $end) {
+            $hppBsjModel        = new HPPModel();
+            $btklModel          = new BtklModel();
+            $operasionalModel   = new PembelianOperasionalModel();
+
+            // 1. Total biaya produksi dari hpp_bsj
+            $total_biaya_hpp = $hppBsjModel
+                ->where('created_at >=', $start)
+                ->where('created_at <=', $end)
+                ->selectSum('total_biaya')
+                ->first()['total_biaya'] ?? 0;
+
+            // 2. Total produksi dari hpp_bsj
+            $total_produksi = $hppBsjModel
+                ->where('created_at >=', $start)
+                ->where('created_at <=', $end)
+                ->selectSum('jumlah_produksi')
+                ->first()['jumlah_produksi'] ?? 0;
+
+            // 3. Total gaji dari tabel btkl
+            $total_btkl = $btklModel
+                ->where('created_at >=', $start)
+                ->where('created_at <=', $end)
+                ->selectSum('total_gaji')
+                ->first()['total_gaji'] ?? 0;
+
+            // 4. Total pembelian operasional
+            $total_operasional = $operasionalModel
+                ->where('tanggal >=', $start)
+                ->where('tanggal <=', $end)
+                ->selectSum('total')
+                ->first()['total'] ?? 0;
+
+            // 5. Hitung jumlah hari
+            $days = (new Time($start))->difference(new Time($end))->getDays() + 1;
+
+            // 6. Hitung total biaya keseluruhan
+            $total_semua_biaya = $total_biaya_hpp + $total_btkl + $total_operasional;
+
+            // 7. Hitung HPP Harian
+            $hpp_per_hari = $days > 0 ? $total_semua_biaya / 30 : 0;
+
+            // 8. Hitung HPP Penjualan per porsi
+            $hpp_per_porsi = $total_produksi > 0 ? $hpp_per_hari / $total_produksi : 0;
+
+            return view('manajemen-penjualan/hpp_penjualan', [
+                'tittle'              => 'HPP Penjualan',
+                'start'               => $start,
+                'end'                 => $end,
+                'days'                => $days,
+                'total_biaya_hpp'     => $total_biaya_hpp,
+                'total_produksi'      => $total_produksi,
+                'total_btkl'          => $total_btkl,
+                'total_operasional'   => $total_operasional,
+                'total_semua_biaya'   => $total_semua_biaya,
+                'hpp_per_hari'        => $hpp_per_hari,
+                'hpp_per_porsi'       => $hpp_per_porsi,
+            ]);
+        }
+
+        // Jika belum ada filter tanggal, tetap tampilkan form
+        return view('manajemen-penjualan/hpp_penjualan', [
+            'tittle' => 'HPP Penjualan'
+        ]);
+    }
+    // ===================================== HPP PENJUALAN START ===================================================== //
 }

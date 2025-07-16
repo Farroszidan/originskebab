@@ -2,8 +2,11 @@
 <?= $this->section('page-content'); ?>
 
 <div class="container mt-4">
-    <h4 class="mb-4"><?= $tittle ?></h4>
-
+    <div class="container mt-4 text-center">
+        <h2 class="mb-0">Sistem Informasi Laporan Keuangan</h2>
+        <h2 class="mb-0">Origins Kebab</h2> <br>
+        <h3 class="mb-4">Laporan Piutang</h3> <br>
+    </div>
     <!-- Form Filter -->
     <form method="get" class="mb-3">
         <div class="form-row align-items-end">
@@ -28,9 +31,9 @@
             <table class="table table-bordered mt-3">
                 <thead class="thead-light">
                     <tr>
-                        <th style="width: 50%">Akun</th>
+                        <th style="width: 50%">Detail Piutang</th>
                         <th style="width: 25%">Jumlah Piutang (Rp)</th>
-                        <th style="width: 25%">Aksi</th>
+                        <th style="width: 25%">Status</th>
                     </tr>
                 </thead>
                 <tbody>

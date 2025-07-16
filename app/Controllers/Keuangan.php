@@ -15,11 +15,11 @@ class Keuangan extends BaseController
     public function isiKas()
     {
         $db = \Config\Database::connect();
-        $kas_outlet = $db->table('kas_outlet')->get()->getResult();
+        $outlet = $db->table('outlet')->get()->getResult();
 
         $data = [
             'tittle' => 'Isi Kas Outlet',
-            'kas_outlet' => $kas_outlet
+            'kas_outlet' => $outlet // <-- tetap pakai key 'kas_outlet' agar tidak perlu ubah view
         ];
 
         return view('keuangan/isi_kas', $data);
@@ -30,11 +30,16 @@ class Keuangan extends BaseController
         $outlet_id = $this->request->getPost('kas_outlet_id');
         $jumlah = $this->request->getPost('jumlah');
 
-        // Update saldo_awal pada akun
         $db = \Config\Database::connect();
-        $db->query("UPDATE akun SET saldo_awal = saldo_awal + ? WHERE kas_outlet_id = ?", [$jumlah, $outlet_id]);
 
-        return redirect()->to('keuangan')->with('success', 'Kas outlet berhasil diisi.');
+        // Update hanya untuk akun Aset yang berelasi dengan outlet
+        $db->query("
+        UPDATE akun 
+        SET saldo_awal = saldo_awal + ? 
+        WHERE kas_outlet_id = ? AND jenis_akun = 'Aset'
+    ", [$jumlah, $outlet_id]);
+
+        return redirect()->to('/dashboard')->with('success', 'Kas outlet berhasil diisi.');
     }
 
     public function index_jurnal()
@@ -43,20 +48,49 @@ class Keuangan extends BaseController
             return redirect()->to('login');
         }
 
+        $start_date = $this->request->getGet('start_date');
+        $end_date = $this->request->getGet('end_date');
+
         $db = \Config\Database::connect();
         $builder = $db->table('jurnal_umum');
         $builder->select('jurnal_umum.*, akun.nama_akun');
-        $builder->join('akun', 'akun.id = jurnal_umum.akun_id', 'left'); // gunakan LEFT JOIN
+        $builder->join('akun', 'akun.id = jurnal_umum.akun_id', 'left');
+
+        // Filter berdasarkan tanggal jika ada
+        if ($start_date && $end_date) {
+            $builder->where('tanggal >=', $start_date);
+            $builder->where('tanggal <=', $end_date);
+        }
+
         $builder->orderBy('tanggal', 'DESC');
-        $jurnal = $builder->get()->getResultArray();
+        $result = $builder->get()->getResultArray();
+
+        // Kelompokkan berdasarkan (tanggal + keterangan)
+        $jurnal_grouped = [];
+        foreach ($result as $row) {
+            $key = $row['tanggal'] . '|' . $row['keterangan'];
+            if (!isset($jurnal_grouped[$key])) {
+                $jurnal_grouped[$key] = [
+                    'tanggal' => $row['tanggal'],
+                    'keterangan' => $row['keterangan'],
+                    'detail' => []
+                ];
+            }
+            $jurnal_grouped[$key]['detail'][] = [
+                'nama_akun' => $row['nama_akun'],
+                'debit' => $row['debit'],
+                'kredit' => $row['kredit']
+            ];
+        }
 
         $data = [
             'tittle' => 'SIOK | Jurnal Umum',
-            'jurnal' => $jurnal
+            'jurnal' => $jurnal_grouped
         ];
 
         return view('keuangan/index_jurnal', $data);
     }
+
 
     public function create_jurnal()
     {
@@ -67,13 +101,13 @@ class Keuangan extends BaseController
         // Ambil semua akun dari tabel akun
         $db = \Config\Database::connect();
         $akun = $db->table('akun')->get()->getResultArray();
+        $suppliers = $db->table('pemasok')->get()->getResultArray();
 
-        // Kirim data akun ke view
         $data = [
             'tittle' => 'SIOK | Jurnal Umum',
-            'akun' => $akun
+            'akun' => $akun,
+            'suppliers' => $suppliers,
         ];
-
         return view('keuangan/create_jurnal', $data);
     }
 
@@ -91,6 +125,7 @@ class Keuangan extends BaseController
         $akun_kredit = $this->request->getPost('akun_kredit');
         $nominal = $this->request->getPost('nominal');
         $keterangan = $this->request->getPost('keterangan');
+        $supplier_id = $this->request->getPost('supplier_id');
 
         $data = [
             [
@@ -98,14 +133,16 @@ class Keuangan extends BaseController
                 'akun_id' => $akun_debit,
                 'debit' => $nominal,
                 'kredit' => 0,
-                'keterangan' => $keterangan
+                'keterangan' => $keterangan,
+                'supplier_id' => null, // debit tidak butuh supplier
             ],
             [
                 'tanggal' => $tanggal,
                 'akun_id' => $akun_kredit,
                 'debit' => 0,
                 'kredit' => $nominal,
-                'keterangan' => $keterangan
+                'keterangan' => $keterangan,
+                'supplier_id' => $supplier_id ?: null
             ]
         ];
 
@@ -287,25 +324,22 @@ class Keuangan extends BaseController
         $end = $this->request->getGet('end_date') ?? date('Y-m-t');
 
         $query = $db->query("
-        SELECT 
-            akun.nama_akun,
-            akun.kode_akun,
-            SUM(jurnal_umum.kredit) AS total_kredit,
-            SUM(jurnal_umum.debit) AS total_debit
-        FROM jurnal_umum
-        JOIN akun ON akun.id = jurnal_umum.akun_id
-        WHERE akun.jenis_akun = 'kewajiban'
-        AND jurnal_umum.tanggal BETWEEN '$start' AND '$end'
-        GROUP BY akun.nama_akun, akun.kode_akun
-        HAVING SUM(jurnal_umum.kredit) - SUM(jurnal_umum.debit) != 0
-        ORDER BY akun.nama_akun ASC
-    ");
+    SELECT p.nama AS nama_supplier, a.nama_akun, a.kode_akun,
+           SUM(j.kredit - j.debit) AS jumlah
+    FROM jurnal_umum j
+    JOIN akun a ON a.id = j.akun_id
+    JOIN pemasok p ON p.id = j.supplier_id
+    WHERE a.jenis_akun = 'kewajiban'
+      AND j.tanggal BETWEEN '$start' AND '$end'
+      AND j.supplier_id IS NOT NULL
+    GROUP BY p.id, a.id
+    HAVING jumlah != 0
+");
 
         $utang = $query->getResultArray();
 
         $total_utang = 0;
-        foreach ($utang as &$row) {
-            $row['jumlah'] = $row['total_kredit'] - $row['total_debit'];
+        foreach ($utang as $row) {
             $total_utang += $row['jumlah'];
         }
 
@@ -392,22 +426,25 @@ class Keuangan extends BaseController
         $end = $this->request->getGet('end_date') ?? date('Y-m-t');
 
         $query = $db->query("
-        SELECT akun.nama_akun, akun.kode_akun,
-               SUM(jurnal_umum.kredit) AS total_kredit,
-               SUM(jurnal_umum.debit) AS total_debit
-        FROM jurnal_umum
-        JOIN akun ON akun.id = jurnal_umum.akun_id
-        WHERE akun.jenis_akun = 'kewajiban'
-        AND jurnal_umum.tanggal BETWEEN '$start' AND '$end'
-        GROUP BY akun.nama_akun, akun.kode_akun
-        HAVING total_kredit - total_debit != 0
-        ORDER BY akun.nama_akun
+        SELECT
+            p.nama AS nama_supplier,
+            a.nama_akun,
+            SUM(ju.kredit - ju.debit) AS jumlah
+        FROM jurnal_umum ju
+        JOIN akun a ON a.id = ju.akun_id
+        JOIN pemasok p ON p.id = ju.supplier_id
+        WHERE a.jenis_akun = 'kewajiban'
+          AND ju.supplier_id IS NOT NULL
+          AND ju.tanggal BETWEEN '$start' AND '$end'
+        GROUP BY p.id, a.nama_akun
+        HAVING jumlah != 0
+        ORDER BY a.nama_akun
     ");
 
         $utang = $query->getResultArray();
+
         $total = 0;
-        foreach ($utang as &$row) {
-            $row['jumlah'] = $row['total_kredit'] - $row['total_debit'];
+        foreach ($utang as $row) {
             $total += $row['jumlah'];
         }
 
@@ -420,16 +457,14 @@ class Keuangan extends BaseController
 
         $html = view('keuangan/pdf_utang', $data);
 
-        $options = new Options();
+        $options = new \Dompdf\Options();
         $options->set('defaultFont', 'Arial');
         $options->set('isRemoteEnabled', true);
 
-        $dompdf = new Dompdf($options);
+        $dompdf = new \Dompdf\Dompdf($options);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-
-        // ✅ Ubah nama file dan tampilkan langsung di browser
         $dompdf->stream('Laporan_Utang_Origins_Kebab.pdf', ['Attachment' => false]);
     }
 
