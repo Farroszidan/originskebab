@@ -117,6 +117,35 @@ class Dashboard extends BaseController
             $data['kas_outlet'] = $kas_outlet;
         }
 
+        // Role produksi
+        if ($role === 'produksi') {
+            // Asumsi: ada ProduksiModel dan BahanModel
+            $produksiModel = new \App\Models\ProduksiModel();
+            $bahanModel = new \App\Models\BahanModel();
+
+            // Jumlah batch produksi hari ini
+            $today = date('Y-m-d');
+
+            $jumlah_batch = $produksiModel
+                ->where('tanggal', $today)
+                ->countAllResults();
+
+            // Total produk dihasilkan hari ini (asumsi ada kolom 'jumlah' di tabel produksi)
+            $produksi_hari_ini = $produksiModel
+                ->where('tanggal', $today)
+                ->selectSum('jumlah')
+                ->first();
+
+            // Bahan baku menipis (stok <= min_stok)
+            $bahan_menipis = $bahanModel
+                ->where('stok <= min_stok')
+                ->findAll();
+
+            $data['jumlah_batch'] = $jumlah_batch;
+            $data['produksi_hari_ini'] = $produksi_hari_ini['jumlah'] ?? 0;
+            $data['bahan_menipis'] = $bahan_menipis;
+        }
+
         return view('dashboard/index', $data);
     }
 }

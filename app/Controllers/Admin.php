@@ -1182,4 +1182,113 @@ class Admin extends BaseController
 
         return view('admin/btkl', $data);
     }
+
+    // ==================== PERINTAH KERJA PRODUKSI ====================
+    public function perintahKerjaIndex()
+    {
+        if (!in_groups('admin')) return redirect()->to('login');
+        $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+        $data = [
+            'tittle' => 'Daftar Perintah Kerja',
+            'perintah_kerja_list' => $perintahKerjaModel->orderBy('tanggal', 'DESC')->findAll(),
+        ];
+        return view('admin/perintah_kerja_index', $data);
+    }
+
+    public function perintahKerjaInput()
+    {
+        if (!in_groups('admin')) return redirect()->to('login');
+        $outletModel = new \App\Models\OutletModel();
+        $komposisiModel = new \App\Models\KomposisiBahanBSJModel();
+        $bahanModel = new \App\Models\BahanModel();
+        $bsjModel = new \App\Models\BSJModel();
+
+        $data = [
+            'tittle' => 'Input Perintah Kerja',
+            'outlets' => $outletModel->findAll(),
+            'komposisi_bsj' => $komposisiModel->getKomposisiLengkap(),
+            'bahan_all' => $bahanModel->findAll(),
+            'bsj' => $bsjModel->findAll(),
+        ];
+        return view('admin/perintah_kerja_input', $data);
+    }
+
+    public function perintahKerjaSimpan()
+    {
+        if (!in_groups('admin')) return redirect()->to('login');
+        $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+        $detailModel = new \App\Models\DetailPerintahKerjaModel();
+        $distribusiModel = new \App\Models\DistribusiBSJModel();
+        $notifikasiModel = new \App\Models\NotifikasiModel();
+
+        $tanggal = date('Y-m-d');
+        $jumlah_kulit = $this->request->getPost('jumlah_kulit');
+        $jumlah_ayam = $this->request->getPost('jumlah_ayam');
+        $jumlah_sapi = $this->request->getPost('jumlah_sapi');
+        $distribusi = $this->request->getPost('distribusi');
+
+        // Simpan perintah kerja utama
+        $idPerintah = $perintahKerjaModel->insert([
+            'tanggal' => $tanggal,
+            'jumlah_kulit' => $jumlah_kulit,
+            'jumlah_ayam' => $jumlah_ayam,
+            'jumlah_sapi' => $jumlah_sapi,
+            'status' => 'Baru',
+        ], true);
+
+        // Simpan detail kebutuhan bahan (dari komposisi, hitung di JS, atau ulangi di backend jika perlu)
+        // (Contoh: bisa diisi jika ingin menyimpan kebutuhan bahan per perintah kerja)
+
+        // Simpan distribusi ke outlet
+        if ($distribusi && is_array($distribusi)) {
+            foreach ($distribusi as $outlet_id => $row) {
+                $distribusiModel->insert([
+                    'id_perintah_kerja' => $idPerintah,
+                    'outlet_id' => $outlet_id,
+                    'kulit' => $row['kulit'] ?? 0,
+                    'ayam' => $row['ayam'] ?? 0,
+                    'sapi' => $row['sapi'] ?? 0,
+                ]);
+            }
+        }
+
+        // Simpan notifikasi ke bagian produksi dan keuangan
+        $notifikasiModel->insert([
+            'judul' => 'Perintah Kerja Baru',
+            'pesan' => 'Ada perintah kerja produksi BSJ baru pada tanggal ' . $tanggal,
+            'role' => 'produksi',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $notifikasiModel->insert([
+            'judul' => 'Perintah Kerja Baru',
+            'pesan' => 'Ada perintah kerja produksi BSJ baru pada tanggal ' . $tanggal,
+            'role' => 'keuangan',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return redirect()->to('admin/perintah-kerja')->with('success', 'Perintah Kerja berhasil disimpan.');
+    }
+
+    public function perintahKerjaDetail($id)
+    {
+        if (!in_groups('admin')) return redirect()->to('login');
+        $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+        $distribusiModel = new \App\Models\DistribusiBSJModel();
+        $data = [
+            'tittle' => 'Detail Perintah Kerja',
+            'perintah' => $perintahKerjaModel->find($id),
+            'distribusi' => $distribusiModel->where('id_perintah_kerja', $id)->findAll(),
+        ];
+        return view('admin/perintah_kerja_detail', $data);
+    }
+
+    public function perintahKerjaHapus($id)
+    {
+        if (!in_groups('admin')) return redirect()->to('login');
+        $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+        $distribusiModel = new \App\Models\DistribusiBSJModel();
+        $perintahKerjaModel->delete($id);
+        $distribusiModel->where('id_perintah_kerja', $id)->delete();
+        return redirect()->to('admin/perintah-kerja')->with('success', 'Perintah Kerja berhasil dihapus.');
+    }
 }

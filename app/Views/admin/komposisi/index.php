@@ -23,7 +23,7 @@
                         <th>BSJ</th>
                         <th>Bahan</th>
                         <th>Kategori</th>
-                        <th>Jumlah (gram)</th>
+                        <th>Jumlah</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -37,7 +37,14 @@
                             <td><?= esc(reset($bsjNama)['nama'] ?? '-'); ?></td>
                             <td><?= esc($k['nama_bahan']); ?></td>
                             <td><?= esc($k['kategori']); ?></td>
-                            <td><?= esc($k['jumlah']); ?> gram</td>
+                            <td>
+                                <?= esc($k['jumlah']); ?>
+                                <?php
+                                // Prioritaskan satuan konversi, jika tidak ada pakai satuan asli, jika tetap kosong default ke 'gram'
+                                $satuan = $k['satuan'] ?? $k['satuan_konversi'] ?? '';
+                                ?>
+                                <?= esc($satuan); ?>
+                            </td>
                             <td>
                                 <?php if (!in_array($k['id_bsj'], $bsjSudahTampil)) : ?>
                                     <a href="<?= base_url('admin/komposisi/edit/' . $k['id_bsj']); ?>" class="btn btn-warning btn-sm">Edit</a>

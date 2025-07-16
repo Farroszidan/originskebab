@@ -32,7 +32,7 @@
                         <tr>
                             <th>Nama Bahan</th>
                             <th>Kategori</th>
-                            <th>Jumlah (kg)</th>
+                            <th>Jumlah</th>
                             <th>Harga Satuan</th>
                             <th>Subtotal</th>
                         </tr>

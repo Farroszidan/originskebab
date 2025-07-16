@@ -411,6 +411,7 @@
             </a>
             <div id="collapseAdmin" class="collapse" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
+                    <a class="collapse-item" href="<?= base_url('admin/perintah-kerja'); ?>">Perintah Kerja</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/master'); ?>">Tambah Menu</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/varian_menu'); ?>">Varian Menu</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/inputOutlet'); ?>">Input Outlet</a>

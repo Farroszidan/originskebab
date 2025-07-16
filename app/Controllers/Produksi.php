@@ -938,31 +938,36 @@ class Produksi extends BaseController
 
     public function cetakPembelian()
     {
-        // TODO: Implementasi cetak daftar pembelian
-        return view('produksi/laporan/cetak_pembelian');
+        // TODO: Implementasi cetak laporan pembelian
+        $tittle = 'Laporan Pembelian';
+        return view('produksi/laporan/cetak_pembelian', compact('tittle'));
     }
 
     public function cetakProduksi()
     {
-        // TODO: Implementasi cetak daftar produksi
-        return view('produksi/laporan/cetak_produksi');
+        // TODO: Implementasi cetak laporan produksi
+        $tittle = 'Laporan Produksi';
+        return view('produksi/laporan/cetak_produksi', compact('tittle'));
     }
 
     public function cetakPersediaanBahan()
     {
-        // TODO: Implementasi cetak persediaan bahan
-        return view('produksi/laporan/cetak_persediaan_bahan');
+        // TODO: Implementasi cetak laporan persediaan bahan
+        $tittle = 'Laporan Persediaan Bahan';
+        return view('produksi/laporan/cetak_persediaan_bahan', compact('tittle'));
     }
 
     public function cetakPersediaanBSJ()
     {
-        // TODO: Implementasi cetak persediaan BSJ
-        return view('produksi/laporan/cetak_persediaan_bsj');
+        // TODO: Implementasi cetak laporan persediaan BSJ
+        $tittle = 'Laporan Persediaan BSJ';
+        return view('produksi/laporan/cetak_persediaan_bsj', compact('tittle'));
     }
 
     public function cetakPengiriman()
     {
-        // TODO: Implementasi cetak pengiriman
-        return view('produksi/laporan/cetak_pengiriman');
+        // TODO: Implementasi cetak laporan pengiriman
+        $tittle = 'Laporan Pengiriman';
+        return view('produksi/laporan/cetak_pengiriman', compact('tittle'));
     }
 }

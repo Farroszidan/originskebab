@@ -219,9 +219,105 @@
         </a>
 
     <?php elseif ($role === 'produksi'): ?>
-        <div class="alert alert-info shadow-sm">
-            <strong>Selamat datang, Produksi!</strong> Fitur produksi sedang dikembangkan.
+        <div class="alert alert-info shadow-sm mb-4">
+            <strong>Selamat datang, Produksi!</strong> Berikut ringkasan aktivitas produksi hari ini.
         </div>
+
+        <!-- Ringkasan Produksi Hari Ini -->
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card border-left-success shadow h-100 py-2">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-industry fa-2x text-success"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Produksi Hari Ini
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <?= isset($jumlah_batch) ? esc($jumlah_batch) : 0 ?> Batch
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card border-left-primary shadow h-100 py-2">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="mr-3">
+                            <i class="fas fa-boxes fa-2x text-primary"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Produk Dihasilkan
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                <?= isset($produksi_hari_ini) ? esc($produksi_hari_ini) : 0 ?> Unit
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bahan Baku Menipis -->
+        <div class="card shadow-sm border-left-danger mb-4">
+            <div class="card-body">
+                <h5 class="text-danger font-weight-bold mb-3">
+                    <i class="fas fa-exclamation-triangle mr-2"></i> Bahan Baku Menipis
+                </h5>
+                <?php if (!empty($bahan_menipis)): ?>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Nama Bahan</th>
+                                    <th>Stok Saat Ini</th>
+                                    <th>Minimum Stok</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($bahan_menipis as $bahan): ?>
+                                    <tr>
+                                        <td><?= esc($bahan['nama']) ?></td>
+                                        <td>
+                                            <?php
+                                            $satuan = strtolower($bahan['satuan']);
+                                            $jumlah = $bahan['stok'];
+                                            if ($satuan === 'kg' || $satuan === 'liter') {
+                                                $jumlah = $jumlah / 1000;
+                                            }
+                                            ?>
+                                            <?= number_format($jumlah, 2) . ' ' . esc($bahan['satuan']) ?>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            $satuan = strtolower($bahan['satuan']);
+                                            $jumlah = $bahan['min_stok'];
+                                            if ($satuan === 'kg' || $satuan === 'liter') {
+                                                $jumlah = $jumlah / 1000;
+                                            }
+                                            ?>
+                                            <?= number_format($jumlah, 2) . ' ' . esc($bahan['satuan']) ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-success mb-0">Semua stok bahan baku aman.</div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- Notifikasi Produksi (opsional, bisa diisi jika ada notifikasi lain) -->
+        <!--
+        <div class="alert alert-warning shadow-sm">
+            <i class="fas fa-bell mr-2"></i> Tidak ada notifikasi produksi saat ini.
+        </div>
+        -->
 
     <?php else: ?>
         <div class="alert alert-danger shadow-sm">

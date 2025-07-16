@@ -23,14 +23,14 @@
                         <select id="bahan_id" class="form-control">
                             <option value="">-- Pilih Bahan --</option>
                             <?php foreach ($bahan as $b) : ?>
-                                <option value="<?= $b['id']; ?>" data-nama="<?= $b['nama']; ?>" data-kategori="<?= $b['kategori']; ?>">
+                                <option value="<?= $b['id']; ?>" data-nama="<?= $b['nama']; ?>" data-kategori="<?= $b['kategori']; ?>" data-satuan="<?= $b['satuan']; ?>">
                                     <?= $b['nama']; ?> (<?= $b['kategori']; ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group col-md-3">
-                        <label for="jumlah">Jumlah (gram)</label>
+                        <label for="jumlah">Jumlah <span id="label-satuan">(satuan)</span></label>
                         <input type="number" id="jumlah" class="form-control" placeholder="Jumlah" min="1">
                     </div>
                     <div class="form-group col-md-3">
@@ -43,7 +43,7 @@
                         <tr>
                             <th>Nama Bahan</th>
                             <th>Kategori</th>
-                            <th>Jumlah (gram)</th>
+                            <th>Jumlah</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -62,12 +62,28 @@
 <script>
     let daftarBahan = [];
 
+    // Update label satuan saat bahan dipilih
+    document.getElementById('bahan_id').addEventListener('change', function() {
+        const satuanAsli = this.options[this.selectedIndex].dataset.satuan || '';
+        let satuanTampil = '(satuan)';
+        if (satuanAsli.toLowerCase() === 'kg') {
+            satuanTampil = '(gram)';
+        } else if (satuanAsli.toLowerCase() === 'liter') {
+            satuanTampil = '(ml)';
+        } else if (satuanAsli) {
+            satuanTampil = `(${satuanAsli})`;
+        }
+        document.getElementById('label-satuan').textContent = satuanTampil;
+    });
+
     function tambahBahan() {
         const bahanSelect = document.getElementById('bahan_id');
         const bahanId = bahanSelect.value;
         const bahanNama = bahanSelect.options[bahanSelect.selectedIndex].dataset.nama;
         const bahanKategori = bahanSelect.options[bahanSelect.selectedIndex].dataset.kategori;
-        const jumlah = document.getElementById('jumlah').value;
+        const bahanSatuanAsli = bahanSelect.options[bahanSelect.selectedIndex].dataset.satuan;
+        let jumlah = document.getElementById('jumlah').value;
+        let satuanTampil = '';
 
         if (!bahanId || !jumlah || jumlah <= 0) {
             alert('Isi bahan dan jumlah dengan benar');
@@ -80,17 +96,35 @@
             return;
         }
 
+        // Konversi satuan
+        let jumlahTampil = jumlah;
+        if (bahanSatuanAsli.toLowerCase() === 'kg') {
+            // Input sudah gram, label tetap gram
+            satuanTampil = 'gram';
+        } else if (bahanSatuanAsli.toLowerCase() === 'liter') {
+            jumlahTampil = jumlah;
+            satuanTampil = 'ml';
+        } else if (bahanSatuanAsli.toLowerCase() === 'pcs') {
+            jumlahTampil = jumlah;
+            satuanTampil = 'pcs';
+        } else {
+            jumlahTampil = jumlah;
+            satuanTampil = bahanSatuanAsli;
+        }
+
         daftarBahan.push({
             id: bahanId,
             nama: bahanNama,
             kategori: bahanKategori,
-            jumlah: jumlah
+            jumlah: jumlahTampil,
+            satuan: satuanTampil
         });
         renderTabel();
 
         // reset form
         bahanSelect.value = "";
         document.getElementById('jumlah').value = "";
+        document.getElementById('label-satuan').textContent = '(satuan)';
     }
 
     function renderTabel() {
@@ -106,7 +140,7 @@
             </td>
             <td>${item.kategori}</td>
             <td>
-                ${item.jumlah}
+                ${item.jumlah} ${item.satuan}
                 <input type="hidden" name="jumlah[]" value="${item.jumlah}">
             </td>
             <td>
@@ -116,7 +150,6 @@
             tbody.appendChild(row);
         });
     }
-
 
     function hapusBahan(index) {
         daftarBahan.splice(index, 1);
