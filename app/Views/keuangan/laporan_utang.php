@@ -1,8 +1,11 @@
 <?= $this->extend('templates/index_templates_general'); ?>
 <?= $this->section('page-content'); ?>
 <div class="container mt-4">
-    <h4 class="mb-4"><?= $tittle ?? 'Laporan' ?></h4>
-
+    <div class="container mt-4 text-center">
+        <h2 class="mb-0">Sistem Informasi Laporan Keuangan</h2>
+        <h2 class="mb-0">Origins Kebab</h2> <br>
+        <h3 class="mb-4">Laporan Utang</h3> <br>
+    </div>
     <!-- Form Filter -->
     <form method="get" class="mb-3">
         <div class="form-row align-items-end">
@@ -27,30 +30,31 @@
             <table class="table table-bordered mt-3">
                 <thead class="thead-light">
                     <tr>
-                        <th style="width: 50%">Akun</th>
-                        <th style="width: 25%">Jumlah Utang (Rp)</th>
-                        <th style="width: 25%">Aksi</th>
+                        <th style="width: 40%">Supplier</th>
+                        <th style="width: 15%">Jumlah Utang (Rp)</th>
+                        <th style="width: 10%">Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($utang)): ?>
                         <tr>
-                            <td colspan="3" class="text-center">Tidak ada data utang pada periode ini.</td>
+                            <td colspan="4" class="text-center">Tidak ada data utang pada periode ini.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($utang as $row): ?>
                             <tr>
+                                <td><?= esc($row['nama_supplier']) ?></td>
                                 <td><?= number_format($row['jumlah'], 2, ',', '.') ?></td>
                                 <td>
                                     <a href="<?= base_url('keuangan/form_pelunasan_utang/' . $row['kode_akun']) ?>" class="btn btn-sm btn-success">
                                         Pelunasan
                                     </a>
                                 </td>
-
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </tbody>
+
                 <?php if (!empty($utang)): ?>
                     <tfoot>
                         <tr>

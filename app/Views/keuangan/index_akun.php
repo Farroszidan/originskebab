@@ -2,7 +2,11 @@
 <?= $this->section('page-content') ?>
 
 <div class="container mt-4">
-    <h4>Daftar Akun</h4>
+    <div class="container mt-4 text-center">
+        <h2 class="mb-0">Sistem Informasi Laporan Keuangan</h2>
+        <h2 class="mb-0">Origins Kebab</h2> <br>
+        <h3 class="mb-4">Daftar Akun</h3> <br>
+    </div>
     <a href="<?= base_url('keuangan/create_akun') ?>" class="btn btn-success mb-3">+ Tambah Akun</a>
 
     <?php if (session()->getFlashdata('message')): ?>

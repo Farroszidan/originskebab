@@ -2,8 +2,11 @@
 <?= $this->section('page-content'); ?>
 
 <div class="container mt-4">
-    <h4 class="mb-4"><?= esc($tittle ?? 'Laporan Arus Kas') ?></h4>
-
+    <div class="container mt-4 text-center">
+        <h2 class="mb-0">Sistem Informasi Laporan Keuangan</h2>
+        <h2 class="mb-0">Origins Kebab</h2> <br>
+        <h3 class="mb-4">Laporan Arus Kas</h3> <br>
+    </div>
     <form method="get" class="mb-4">
         <div class="form-row align-items-end">
             <div class="col-md-2">

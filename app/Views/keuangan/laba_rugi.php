@@ -2,7 +2,11 @@
 <?= $this->section('page-content') ?>
 
 <div class="container mt-4">
-    <h4 class="mb-4"><?= esc($tittle ?? 'Laporan Laba Rugi') ?></h4>
+    <div class="container mt-4 text-center">
+        <h2 class="mb-0">Sistem Informasi Laporan Keuangan</h2>
+        <h2 class="mb-0">Origins Kebab</h2> <br>
+        <h3 class="mb-4">Laporan Laba Rugi</h3> <br>
+    </div>
     <form method="get" class="form-inline mb-3">
         <select name="filter" class="form-control mr-2" id="filter-select">
             <option value="rentang" <?= $filter == 'rentang' ? 'selected' : '' ?>>Per Rentang Tanggal</option>
