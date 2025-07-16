@@ -10,7 +10,6 @@
                 <h5 class="text-primary font-weight-bold mb-3">
                     <i class="fas fa-filter mr-2"></i> Filter Periode Penjualan
                 </h5>
-
                 <form method="get" action="<?= base_url('dashboard') ?>" class="form-row align-items-end">
                     <div class="col-md-4 mb-2">
                         <label for="start">Tanggal Mulai</label>
@@ -34,6 +33,7 @@
             </div>
         </div>
 
+
         <?php if (!empty($penjualanPerOutlet)): ?>
             <div class="row">
                 <?php foreach ($penjualanPerOutlet as $outlet): ?>
@@ -56,7 +56,6 @@
                     </div>
                 <?php endforeach; ?>
 
-                <!-- Total Semua Outlet -->
                 <div class="col-12 mt-3">
                     <div class="alert alert-info shadow-sm">
                         <strong>Total Penjualan Semua Outlet:</strong>
@@ -67,19 +66,45 @@
                 </div>
             </div>
         <?php else: ?>
-            <div class="alert alert-warning">
-                Tidak ada data penjualan untuk periode ini.
+            <div class="alert alert-warning">Tidak ada data penjualan untuk periode ini.</div>
+        <?php endif; ?>
+
+        <?php if (!empty($kas_outlet_admin)): ?>
+            <div class="row mt-4">
+                <div class="col-12 mb-2">
+                    <h5 class="text-info font-weight-bold">
+                        <i class="fas fa-wallet mr-2"></i> Uang Laci (Saldo Kas) Semua Outlet
+                    </h5>
+                </div>
+                <?php foreach ($kas_outlet_admin as $kas): ?>
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-left-info shadow h-100 py-2">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="mr-3">
+                                    <i class="fas fa-cash-register fa-2x text-info"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                        <?= esc($kas['nama_akun']) ?>
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                        Rp <?= number_format($kas['saldo_awal'], 0, ',', '.') ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
             </div>
         <?php endif; ?>
 
+
     <?php elseif ($role === 'penjualan'): ?>
-        <!-- Tampilan khusus penjualan -->
         <div class="card shadow-sm mb-4 border-left-primary">
             <div class="card-body">
                 <h5 class="text-primary font-weight-bold mb-3">
                     <i class="fas fa-calendar-alt mr-2"></i> Filter Periode Penjualan
                 </h5>
-
                 <form method="get" action="<?= base_url('dashboard') ?>" class="form-row align-items-end">
                     <div class="col-md-4 mb-2">
                         <label for="start">Tanggal Mulai</label>
@@ -103,7 +128,7 @@
             </div>
         </div>
 
-        <div class="card shadow-sm border-left-success">
+        <div class="card shadow-sm border-left-success mb-3">
             <div class="card-body d-flex align-items-center">
                 <div class="mr-3">
                     <i class="fas fa-money-bill-wave fa-2x text-success"></i>
@@ -122,6 +147,36 @@
             </div>
         </div>
 
+        <!-- Kas Outlet -->
+        <?php if (!empty($kas_outlet)): ?>
+            <div class="row mt-4">
+                <div class="col-12 mb-2">
+                    <h5 class="text-info font-weight-bold">
+                        <i class="fas fa-wallet mr-2"></i> Uang Laci
+                    </h5>
+                </div>
+                <?php foreach ($kas_outlet as $kas): ?>
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-left-info shadow h-100 py-2">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="mr-3">
+                                    <i class="fas fa-cash-register fa-2x text-info"></i>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                        <?= esc($kas['nama_outlet']) ?>
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                        Rp <?= number_format($kas['saldo_awal'], 0, ',', '.') ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
     <?php elseif ($role === 'keuangan'): ?>
         <div class="alert alert-primary shadow-sm">
             <strong>Selamat datang, Keuangan!</strong> Berikut ringkasan kas outlet.
@@ -129,30 +184,34 @@
 
         <div class="row">
             <?php if (!empty($kas_outlet)): ?>
-                <?php foreach ($kas_outlet as $kas): ?>
-                    <div class="col-xl-3 col-md-6 mb-4">
-                        <div class="card border-left-info shadow h-100 py-2">
-                            <div class="card-body d-flex align-items-center">
-                                <div class="mr-3">
-                                    <i class="fas fa-wallet fa-2x text-info"></i>
-                                </div>
-                                <div>
-                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                        <?= esc($kas['nama_outlet']); ?>
+                <div class="row mt-4">
+                    <div class="col-12 mb-2">
+                        <h5 class="text-info font-weight-bold">
+                            <i class="fas fa-wallet mr-2"></i> Uang Laci (Saldo Kas) Semua Outlet
+                        </h5>
+                    </div>
+                    <?php foreach ($kas_outlet as $kas): ?>
+                        <div class="col-md-4 mb-3">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body d-flex align-items-center">
+                                    <div class="mr-3">
+                                        <i class="fas fa-cash-register fa-2x text-info"></i>
                                     </div>
-                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                        Rp <?= number_format($kas['saldo_awal'], 0, ',', '.'); ?>
+                                    <div>
+                                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                            <?= esc($kas['nama_outlet']) ?>
+                                        </div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            Rp <?= number_format($kas['saldo_awal'], 0, ',', '.') ?>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="col-12">
-                    <div class="alert alert-warning shadow-sm">Data kas outlet belum tersedia.</div>
+                    <?php endforeach; ?>
                 </div>
             <?php endif; ?>
+
         </div>
 
         <a href="<?= base_url('keuangan/isi-kas') ?>" class="btn btn-sm btn-success shadow-sm mb-4">

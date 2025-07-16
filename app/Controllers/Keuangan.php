@@ -11,29 +11,6 @@ use Dompdf\Options;
 
 class Keuangan extends BaseController
 {
-    public function index()
-    {
-        if (!in_groups('keuangan')) {
-            return redirect()->to('login');
-        }
-
-        $db = \Config\Database::connect();
-        $query = $db->query("
-            SELECT ko.nama_outlet, a.saldo_awal
-            FROM akun a
-            JOIN kas_outlet ko ON ko.id = a.kas_outlet_id
-            WHERE a.jenis_akun = 'aset' AND a.kas_outlet_id IS NOT NULL
-        ");
-
-        $kas_outlet = $query->getResult();
-
-        $data = [
-            'tittle' => 'SIOK | Dashboard',
-            'kas_outlet' => $kas_outlet
-        ];
-
-        return view('keuangan/dashboard', $data);
-    }
 
     public function isiKas()
     {

@@ -168,6 +168,18 @@
                     <a class="collapse-item" href="<?= base_url('produksi/pengiriman'); ?>">Pengiriman</a>
                 </div>
             </div>
+            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseLaporan"
+                aria-expanded="true" aria-controls="collapseLaporan">
+                <i class="fas fa-fw fa-file-alt"></i>
+                <span>Laporan</span>
+            </a>
+            <div id="collapseLaporan" class="collapse" aria-labelledby="headingProduksi"
+                data-parent="#accordionSidebar">
+                <div class="bg-white py-2 collapse-inner rounded">
+                    <h6 class="collapse-header">Laporan:</h6>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan'); ?>">laporan</a>
+                </div>
+            </div>
         </li>
     <?php endif; ?>
 
@@ -434,19 +446,6 @@
         </li>
 
     <?php endif; ?>
-
-    <hr class="sidebar-divider">
-    <div class="sidebar-heading">Setting</div>
-    <li class="nav-item">
-        <a class="nav-link" href="#">
-            <i class="fas fa-fw fa-user"></i>
-            <span>Akun</span></a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link" href="/admin/usermanajemen">
-            <i class="fas fa-fw fa-users-cog"></i>
-            <span>User Manajemen</span></a>
-    </li>
     <hr class="sidebar-divider d-none d-md-block">
     <li class="nav-item">
         <a class="nav-link" href="<?= base_url('logout'); ?>">

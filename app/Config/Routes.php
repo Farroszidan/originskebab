@@ -141,7 +141,11 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,keuangan'], funct
     $routes->get('data-shift', 'ManajemenPenjualan::dataShift');
     $routes->post('simpan-shift', 'ManajemenPenjualan::simpanShift');
     $routes->get('btkl', 'ManajemenPenjualan::btkl');
+
+
     $routes->get('hppPenjualan', 'ManajemenPenjualan::hppPenjualan');
+
+    $routes->get('admin/dashboard', 'Admin::dashboard');
 });
 
 
@@ -184,8 +188,7 @@ $routes->get('notifikasi/tandai_semua', 'Notifikasi::tandai_semua');
 $routes->get('notifikasi/detail/(:num)', 'Notifikasi::detail/$1');
 
 // KEUANGAN
-
-$routes->get('keuangan', 'Keuangan::index', ['filter' => 'role:keuangan']);
+$routes->get('dashboard', 'Dashboard::index');
 $routes->get('keuangan/isi-kas', 'Keuangan::isiKas', ['filter' => 'role:keuangan']);
 $routes->post('keuangan/isi-kas', 'Keuangan::simpanIsiKas', ['filter' => 'role:keuangan']);
 
@@ -283,6 +286,16 @@ $routes->group('produksi', ['filter' => 'role:produksi'], function ($routes) {
     $routes->post('pengiriman/form-pengiriman/store', 'Produksi::pengirimanSimpan');
     $routes->get('pengiriman/detail/(:num)', 'Produksi::pengirimanDetail/$1');
     $routes->match(['get', 'post'], 'pengiriman/hapus/(:num)', 'Produksi::hapusPengiriman/$1'); // route hapus pengiriman, support GET & POST
+});
+
+// PRODUKSI LAPORAN
+$routes->group('produksi/laporan', ['filter' => 'role:produksi'], function ($routes) {
+    $routes->get('/', 'Produksi::laporanIndex');
+    $routes->get('cetak_pembelian', 'Produksi::cetakPembelian');
+    $routes->get('cetak_produksi', 'Produksi::cetakProduksi');
+    $routes->get('cetak_persediaan_bahan', 'Produksi::cetakPersediaanBahan');
+    $routes->get('cetak_persediaan_bsj', 'Produksi::cetakPersediaanBSJ');
+    $routes->get('cetak_pengiriman', 'Produksi::cetakPengiriman');
 });
 
 $routes->get('produksi/hpp/form', 'Produksi::formHPP', ['filter' => 'role:produksi']);
