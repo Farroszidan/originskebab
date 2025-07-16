@@ -79,9 +79,13 @@
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/laporanpenjualan'); ?>">
                         <i class="fas fa-fw fa-file-invoice-dollar text-success mr-1"></i> Laporan Penjualan
                     </a>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/hppPenjualan'); ?>">
+                        <i class="fas fa-fw fa-balance-scale text-warning mr-1"></i> HPP Penjualan
+                    </a>
                 </div>
             </div>
         </li>
+
         <li class="nav-item">
             <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseBTKL">
                 <i class="fas fa-fw fa-user-check"></i>
@@ -387,6 +391,9 @@
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/laporanpenjualan'); ?>">
                         <i class="fas fa-fw fa-file-invoice-dollar text-success mr-1"></i> Laporan Penjualan
                     </a>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/hppPenjualan'); ?>">
+                        <i class="fas fa-fw fa-balance-scale text-warning mr-1"></i> HPP Penjualan
+                    </a>
                 </div>
             </div>
         </li>
@@ -411,18 +418,21 @@
             </div>
         </li>
         <li class="nav-item">
-            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseBTKL">
+            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseBTKL" aria-expanded="true" aria-controls="collapseBTKL">
                 <i class="fas fa-fw fa-user-check"></i>
                 <span>BTKL</span>
             </a>
-            <div id="collapseBTKL" class="collapse" data-parent="#accordionSidebar">
+            <div id="collapseBTKL" class="collapse <?= (uri_string() === 'manajemen-penjualan/input-shift' || uri_string() === 'manajemen-penjualan/data-shift' || uri_string() === 'manajemen-penjualan/btkl' || uri_string() === 'manajemen-penjualan/btkl/form') ? 'show' : '' ?>" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/data-shift'); ?>">Data Shift</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/btkl'); ?>">Perhitungan Gaji</a>
+                    <h6 class="collapse-header">Shift & Gaji:</h6>
+                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/input-shift' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
+                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/data-shift' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/data-shift'); ?>">Data Shift</a>
+                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/btkl/form' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/btkl/form'); ?>">Hitung Gaji BTKL</a>
+                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/btkl' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/btkl'); ?>">Rekap Gaji BTKL</a>
                 </div>
             </div>
         </li>
+
     <?php endif; ?>
 
     <hr class="sidebar-divider">

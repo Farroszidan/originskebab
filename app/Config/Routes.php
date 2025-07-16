@@ -43,8 +43,6 @@ $routes->group('admin', ['filter' => 'role:admin'], function ($routes) {
 
 // ==== PENJUALAN DAN ADMIN ====
 $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan,keuangan'], function ($routes) {
-    // $routes->get('dashboard', 'ManajemenPenjualan::dashboard');
-
     // Transaksi
     $routes->get('inputtransaksi', 'ManajemenPenjualan::input_transaksi');
     $routes->post('simpanTransaksi', 'ManajemenPenjualan::simpanTransaksi');
@@ -88,19 +86,22 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan,keuanga
 
     // Daftar permintaan
     $routes->get('permintaan', 'ManajemenPenjualan::permintaan');
-
-    // Form input permintaan
     $routes->get('formPermintaan', 'ManajemenPenjualan::formPermintaan');
-
-    // Simpan permintaan
     $routes->post('storePermintaan', 'ManajemenPenjualan::storePermintaan');
-
-    // Detail permintaan
     $routes->get('permintaan/detail/(:num)', 'ManajemenPenjualan::detailPermintaan/$1');
-
-    // Hapus permintaan
     $routes->post('hapus/(:num)', 'ManajemenPenjualan::hapusPermintaan/$1');
+
+    // HPP Penjualan
+    $routes->get('hppPenjualan', 'ManajemenPenjualan::hppPenjualan');
+
+    // Pegawai by outlet
+    $routes->get('get-users/(:num)', 'ManajemenPenjualan::getUsersByOutlet/$1');
+
+    $routes->match(['get', 'post'], 'btkl/form', 'ManajemenPenjualan::btklForm');
+
+    $routes->get('btkl', 'ManajemenPenjualan::btkl');
 });
+
 
 // ==== ADMIN SAJA ====
 // Grup hanya untuk admin
@@ -140,6 +141,7 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,keuangan'], funct
     $routes->get('data-shift', 'ManajemenPenjualan::dataShift');
     $routes->post('simpan-shift', 'ManajemenPenjualan::simpanShift');
     $routes->get('btkl', 'ManajemenPenjualan::btkl');
+    $routes->get('hppPenjualan', 'ManajemenPenjualan::hppPenjualan');
 });
 
 

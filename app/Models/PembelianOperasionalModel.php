@@ -17,6 +17,7 @@ class PembelianOperasionalModel extends Model
     public function getDetailPembelian($pembelianId)
     {
         return $this->db->table('detail_pembelian_operasional')
+            ->select('nama_barang, jumlah, total')
             ->where('pembelian_id', $pembelianId)
             ->get()
             ->getResultArray();

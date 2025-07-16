@@ -7,30 +7,34 @@
     <form action="<?= base_url('manajemen-penjualan/simpan-shift') ?>" method="post" id="formShift">
         <!-- Outlet -->
         <div class="form-group">
-            <label for="outletSelect">Outlet</label>
-            <select name="outlet_id" id="outletSelect" class="form-control" required>
-                <option value="">-- Pilih Outlet --</option>
+            <label for="outlet_id">Outlet</label>
+            <select name="outlet_id" class="form-control" <?= isset($readonly_outlet) && $readonly_outlet ? 'disabled' : '' ?>>
                 <?php foreach ($outlets as $outlet): ?>
-                    <option value="<?= $outlet['id'] ?>"><?= esc($outlet['nama_outlet']) ?></option>
-                <?php endforeach ?>
+                    <option value="<?= $outlet['id'] ?>" selected><?= esc($outlet['nama_outlet']) ?></option>
+                <?php endforeach; ?>
             </select>
+
+            <?php if (isset($readonly_outlet) && $readonly_outlet): ?>
+                <!-- Tambahkan hidden input agar value tetap terkirim -->
+                <input type="hidden" name="outlet_id" value="<?= $outlets[0]['id'] ?>">
+            <?php endif; ?>
+        </div>
+
+        <!-- Tanggal -->
+        <div class="form-group">
+            <label for="tanggal">Tanggal</label>
+            <input type="date" name="tanggal" class="form-control" required>
         </div>
 
         <!-- Pegawai -->
-        <label>Nama Pegawai</label>
-        <div id="pegawai-container">
-            <div class="form-row mb-2">
-                <div class="col-md-10">
-                    <select name="user_id[]" class="form-control pegawai-select" required>
-                        <option value="">-- Pilih Pegawai --</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <button type="button" class="btn btn-outline-success btn-block add-pegawai">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-            </div>
+        <div class="form-group">
+            <label for="user_id">Pilih Pegawai</label>
+            <select name="user_id" class="form-control" required>
+                <option value="">-- Pilih Pegawai --</option>
+                <?php foreach ($users as $user): ?>
+                    <option value="<?= $user['id'] ?>"><?= esc($user['username']) ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
 
         <!-- Shift -->
@@ -44,12 +48,6 @@
                     </option>
                 <?php endforeach ?>
             </select>
-        </div>
-
-        <!-- Tanggal -->
-        <div class="form-group">
-            <label for="tanggal">Tanggal</label>
-            <input type="date" name="tanggal" class="form-control" required>
         </div>
 
         <!-- Tombol Submit -->
@@ -66,7 +64,7 @@
         targetSelect.innerHTML = '<option value="">-- Pilih Pegawai --</option>';
         if (!outletId) return;
 
-        fetch("/admin/users-by-outlet/" + outletId)
+        fetch("<?= base_url('manajemen-penjualan/get-users') ?>/" + outletId)
             .then(res => res.json())
             .then(data => {
                 data.forEach(user => {
@@ -75,8 +73,12 @@
                     opt.textContent = user.username;
                     targetSelect.appendChild(opt);
                 });
+            })
+            .catch(err => {
+                console.error("Gagal mengambil data pegawai:", err);
             });
     }
+
 
     // Load pegawai saat outlet dipilih
     document.getElementById('outletSelect').addEventListener('change', function() {
