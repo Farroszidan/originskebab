@@ -1221,46 +1221,93 @@ class Admin extends BaseController
         $distribusiModel = new \App\Models\DistribusiBSJModel();
         $notifikasiModel = new \App\Models\NotifikasiModel();
 
+
         $tanggal = date('Y-m-d');
-        $jumlah_kulit = $this->request->getPost('jumlah_kulit');
-        $jumlah_ayam = $this->request->getPost('jumlah_ayam');
-        $jumlah_sapi = $this->request->getPost('jumlah_sapi');
+        $daftarProduksi = $this->request->getPost('daftarProduksi');
         $distribusi = $this->request->getPost('distribusi');
 
+        // Hitung jumlah kulit, ayam, sapi dari daftarProduksi
+        $jumlah_kulit = 0;
+        $jumlah_ayam = 0;
+        $jumlah_sapi = 0;
+        // Ambil semua data BSJ sekali saja
+        $bsjList = (new \App\Models\BSJModel())->findAll();
+        if ($daftarProduksi && is_array($daftarProduksi)) {
+            foreach ($daftarProduksi as $item) {
+                $bsjId = isset($item['bsjId']) ? $item['bsjId'] : null;
+                $jumlah = isset($item['jumlah']) ? (int)$item['jumlah'] : 0;
+                if (!$bsjId || $jumlah <= 0) continue;
+                $bsj = null;
+                foreach ($bsjList as $b) {
+                    if ($b['id'] == $bsjId) {
+                        $bsj = $b;
+                        break;
+                    }
+                }
+                if ($bsj) {
+                    $nama = strtolower($bsj['nama']);
+                    if (strpos($nama, 'kulit kebab') !== false) {
+                        $jumlah_kulit += $jumlah;
+                    } elseif (strpos($nama, 'daging ayam') !== false) {
+                        $jumlah_ayam += $jumlah;
+                    } elseif (strpos($nama, 'daging sapi') !== false) {
+                        $jumlah_sapi += $jumlah;
+                    }
+                }
+            }
+        }
+
+        // Hitung total biaya dari daftarProduksi
+        $total_biaya = 0;
+        if ($daftarProduksi && is_array($daftarProduksi)) {
+            foreach ($daftarProduksi as $item) {
+                if (isset($item['totalBiaya'])) {
+                    $total_biaya += (float)$item['totalBiaya'];
+                }
+            }
+        }
         // Simpan perintah kerja utama
         $idPerintah = $perintahKerjaModel->insert([
             'tanggal' => $tanggal,
             'jumlah_kulit' => $jumlah_kulit,
             'jumlah_ayam' => $jumlah_ayam,
             'jumlah_sapi' => $jumlah_sapi,
-            'status' => 'Baru',
+            'total_biaya' => $total_biaya,
         ], true);
 
-        // Simpan detail kebutuhan bahan (dari komposisi, hitung di JS, atau ulangi di backend jika perlu)
-        // (Contoh: bisa diisi jika ingin menyimpan kebutuhan bahan per perintah kerja)
+        // Simpan detail kebutuhan bahan
+        if ($daftarProduksi && is_array($daftarProduksi)) {
+            foreach ($daftarProduksi as $item) {
+                $detailModel->insert([
+                    'perintah_kerja_id' => $idPerintah,
+                    'jenis_bsj' => $item['bsjId'],
+                    'jumlah' => $item['jumlah'],
+                ]);
+            }
+        }
 
         // Simpan distribusi ke outlet
         if ($distribusi && is_array($distribusi)) {
             foreach ($distribusi as $outlet_id => $row) {
-                $distribusiModel->insert([
-                    'id_perintah_kerja' => $idPerintah,
-                    'outlet_id' => $outlet_id,
-                    'kulit' => $row['kulit'] ?? 0,
-                    'ayam' => $row['ayam'] ?? 0,
-                    'sapi' => $row['sapi'] ?? 0,
-                ]);
+                // Asumsi row berisi array dengan key jenis_bsj dan jumlah
+                foreach ($row as $jenis_bsj => $jumlah) {
+                    $distribusiModel->insert([
+                        'perintah_kerja_id' => $idPerintah,
+                        'outlet_id' => $outlet_id,
+                        'jenis_bsj' => $jenis_bsj,
+                        'jumlah' => $jumlah,
+                    ]);
+                }
             }
         }
 
         // Simpan notifikasi ke bagian produksi dan keuangan
         $notifikasiModel->insert([
-            'judul' => 'Perintah Kerja Baru',
             'pesan' => 'Ada perintah kerja produksi BSJ baru pada tanggal ' . $tanggal,
             'role' => 'produksi',
             'created_at' => date('Y-m-d H:i:s'),
         ]);
         $notifikasiModel->insert([
-            'judul' => 'Perintah Kerja Baru',
             'pesan' => 'Ada perintah kerja produksi BSJ baru pada tanggal ' . $tanggal,
             'role' => 'keuangan',
             'created_at' => date('Y-m-d H:i:s'),
@@ -1274,10 +1321,12 @@ class Admin extends BaseController
         if (!in_groups('admin')) return redirect()->to('login');
         $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
         $distribusiModel = new \App\Models\DistribusiBSJModel();
+        $detailModel = new \App\Models\DetailPerintahKerjaModel();
         $data = [
             'tittle' => 'Detail Perintah Kerja',
             'perintah' => $perintahKerjaModel->find($id),
-            'distribusi' => $distribusiModel->where('id_perintah_kerja', $id)->findAll(),
+            'distribusi' => $distribusiModel->where('perintah_kerja_id', $id)->findAll(),
+            'detail' => $detailModel->where('perintah_kerja_id', $id)->findAll(),
         ];
         return view('admin/perintah_kerja_detail', $data);
     }
@@ -1287,8 +1336,9 @@ class Admin extends BaseController
         if (!in_groups('admin')) return redirect()->to('login');
         $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
         $distribusiModel = new \App\Models\DistribusiBSJModel();
+        // Hapus distribusi dulu agar tidak error constraint
+        $distribusiModel->where('perintah_kerja_id', $id)->delete();
         $perintahKerjaModel->delete($id);
-        $distribusiModel->where('id_perintah_kerja', $id)->delete();
         return redirect()->to('admin/perintah-kerja')->with('success', 'Perintah Kerja berhasil dihapus.');
     }
 }

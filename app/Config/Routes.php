@@ -254,49 +254,60 @@ $routes->get('admin/perintah-kerja/detail/(:num)', 'Admin::perintahKerjaDetail/$
 $routes->get('admin/perintah-kerja/hapus/(:num)', 'Admin::perintahKerjaHapus/$1', ['filter' => 'role:admin']);
 
 // PRODUKSI PEMBELIAN
-$routes->add('produksi', 'Produksi::index', ['filter' => 'role:produksi']);
-$routes->get('produksi/pembelian', 'Produksi::pembelian', ['filter' => 'role:produksi']);
-$routes->get('produksi/pembelian/create', 'Produksi::createPembelian', ['filter' => 'role:produksi']);
-$routes->post('produksi/pembelian/simpan-pembelian', 'Produksi::simpanPembelian', ['filter' => 'role:produksi']);
-$routes->get('produksi/pembelian/delete/(:num)', 'Produksi::hapusPembelian/$1', ['filter' => 'role:produksi']);
-$routes->get('produksi/pembelian/detail/(:num)', 'Produksi::detailPembelian/$1', ['filter' => 'role:produksi']);
+$routes->group('produksi', ['filter' => 'role:produksi,admin'], function ($routes) {
+    $routes->add('/', 'Produksi::index');
+    $routes->get('pembelian', 'Produksi::pembelian');
+    $routes->get('pembelian/create', 'Produksi::createPembelian');
+    $routes->post('pembelian/simpan-pembelian', 'Produksi::simpanPembelian');
+    $routes->get('pembelian/delete/(:num)', 'Produksi::hapusPembelian/$1');
+    $routes->get('pembelian/detail/(:num)', 'Produksi::detailPembelian/$1');
+    $routes->get('pembelian/edit/(:num)', 'Produksi::editPembelian/$1');
+    $routes->post('pembelian/update/(:num)', 'Produksi::updatePembelian/$1');
+    $routes->get('pembelian/update-status/(:num)/(:any)', 'Produksi::updateStatusPembelian/$1/$2');
+});
 
 // PRODUKSI PERSEDIAAN
 //BAHAN MENTAH
-$routes->get('produksi/persediaan', 'Produksi::bahan', ['filter' => 'role:produksi']);
-$routes->get('produksi/persediaan/create', 'Produksi::create', ['filter' => 'role:produksi']);
-$routes->post('produksi/persediaan/simpan', 'Produksi::simpanBahan', ['filter' => 'role:produksi']);
-$routes->get('produksi/persediaan/edit/(:num)', 'Produksi::editBahan/$1', ['filter' => 'role:produksi']);
-$routes->post('produksi/persediaan/update/(:num)', 'Produksi::updateBahan/$1', ['filter' => 'role:produksi']);
-$routes->get('produksi/persediaan/delete/(:num)', 'Produksi::hapusBahan/$1', ['filter' => 'role:produksi']);
+$routes->group('produksi/persediaan', ['filter' => 'role:produksi,admin'], function ($routes) {
+    $routes->get('/', 'Produksi::bahan');
+    $routes->get('create', 'Produksi::create');
+    $routes->post('simpan', 'Produksi::simpanBahan');
+    $routes->get('edit/(:num)', 'Produksi::editBahan/$1');
+    $routes->post('update/(:num)', 'Produksi::updateBahan/$1');
+    $routes->get('delete/(:num)', 'Produksi::hapusBahan/$1');
+});
 //BSJ
-$routes->get('produksi/persediaan/bsj', 'Produksi::bsj', ['filter' => 'role:produksi']);
-$routes->get('produksi/persediaan/tambah_bsj', 'Produksi::tambahBSJ', ['filter' => 'role:produksi']);
-$routes->post('produksi/persediaan/simpan_bsj', 'Produksi::simpanBSJ', ['filter' => 'role:produksi']);
-$routes->get('produksi/persediaan/edit_bsj/(:num)', 'Produksi::editBSJ/$1', ['filter' => 'role:produksi']);
-$routes->post('produksi/persediaan/update_bsj/(:num)', 'Produksi::updateBSJ/$1', ['filter' => 'role:produksi']);
-$routes->get('produksi/persediaan/delete_bsj/(:num)', 'Produksi::hapusBSJ/$1', ['filter' => 'role:produksi']);
+$routes->group('produksi/persediaan/bsj', ['filter' => 'role:produksi,admin'], function ($routes) {
+    $routes->get('/', 'Produksi::bsj');
+    $routes->get('tambah', 'Produksi::tambahBSJ');
+    $routes->post('simpan', 'Produksi::simpanBSJ');
+    $routes->get('edit/(:num)', 'Produksi::editBSJ/$1');
+    $routes->post('update/(:num)', 'Produksi::updateBSJ/$1');
+    $routes->get('delete/(:num)', 'Produksi::hapusBSJ/$1');
+});
 
 
 // PRODUKSI PRODUKSI
-$routes->get('produksi/produksi/input', 'Produksi::inputProduksi', ['filter' => 'role:produksi']);
-$routes->post('produksi/produksi/simpan', 'Produksi::simpanProduksi', ['filter' => 'role:produksi']);
-$routes->get('produksi/produksi/daftar', 'Produksi::daftarProduksi', ['filter' => 'role:produksi']);
-$routes->get('produksi/produksi/detail/(:num)', 'Produksi::detailProduksi/$1', ['filter' => 'role:produksi']);
-$routes->get('produksi/produksi/hapus/(:num)', 'Produksi::hapusProduksi/$1', ['filter' => 'role:produksi']);
-$routes->get('produksi/produksi/updateStatus/(:num)/(:any)', 'Produksi::updateStatusProduksi/$1/$2', ['filter' => 'role:produksi']);
+$routes->group('produksi/produksi', ['filter' => 'role:produksi,admin'], function ($routes) {
+    $routes->get('input', 'Produksi::inputProduksi');
+    $routes->post('simpan', 'Produksi::simpanProduksi');
+    $routes->get('daftar', 'Produksi::daftarProduksi');
+    $routes->get('detail/(:num)', 'Produksi::detailProduksi/$1');
+    $routes->get('hapus/(:num)', 'Produksi::hapusProduksi/$1');
+    $routes->get('updateStatus/(:num)/(:any)', 'Produksi::updateStatusProduksi/$1/$2');
+});
 
 // PRODUKSI PENGIRIMAN
-$routes->group('produksi', ['filter' => 'role:produksi'], function ($routes) {
-    $routes->get('pengiriman', 'Produksi::pengirimanIndex');
-    $routes->get('pengiriman/form-pengiriman', 'Produksi::pengirimanInput');
-    $routes->post('pengiriman/form-pengiriman/store', 'Produksi::pengirimanSimpan');
-    $routes->get('pengiriman/detail/(:num)', 'Produksi::pengirimanDetail/$1');
-    $routes->match(['get', 'post'], 'pengiriman/hapus/(:num)', 'Produksi::hapusPengiriman/$1'); // route hapus pengiriman, support GET & POST
+$routes->group('produksi/pengiriman', ['filter' => 'role:produksi,admin'], function ($routes) {
+    $routes->get('/', 'Produksi::pengirimanIndex');
+    $routes->get('form-pengiriman', 'Produksi::pengirimanInput');
+    $routes->post('form-pengiriman/store', 'Produksi::pengirimanSimpan');
+    $routes->get('detail/(:num)', 'Produksi::pengirimanDetail/$1');
+    $routes->match(['get', 'post'], 'hapus/(:num)', 'Produksi::hapusPengiriman/$1');
 });
 
 // PRODUKSI LAPORAN
-$routes->group('produksi/laporan', ['filter' => 'role:produksi'], function ($routes) {
+$routes->group('produksi/laporan', ['filter' => 'role:produksi,admin'], function ($routes) {
     $routes->get('/', 'Produksi::laporanIndex');
     $routes->get('cetak_pembelian', 'Produksi::cetakPembelian');
     $routes->get('cetak_produksi', 'Produksi::cetakProduksi');
@@ -305,9 +316,11 @@ $routes->group('produksi/laporan', ['filter' => 'role:produksi'], function ($rou
     $routes->get('cetak_pengiriman', 'Produksi::cetakPengiriman');
 });
 
-$routes->get('produksi/hpp/form', 'Produksi::formHPP', ['filter' => 'role:produksi']);
-$routes->post('produksi/hpp/simpan', 'Produksi::simpanHPP', ['filter' => 'role:produksi']);
-$routes->get('produksi/hpp', 'Produksi::indexHPP');
+$routes->group('produksi/hpp', ['filter' => 'role:produksi,admin'], function ($routes) {
+    $routes->get('form', 'Produksi::formHPP');
+    $routes->post('simpan', 'Produksi::simpanHPP');
+    $routes->get('/', 'Produksi::indexHPP');
+});
 
 $routes->add('penjualan', 'Penjualan::index', ['filter' => 'role:penjualan']);
 $routes->get('/dashboard', 'Dashboard::index', ['filter' => 'role:admin,penjualan,keuangan,produksi']);

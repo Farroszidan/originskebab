@@ -14,7 +14,6 @@
                         <th>Jumlah Kulit</th>
                         <th>Jumlah Ayam</th>
                         <th>Jumlah Sapi</th>
-                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -28,7 +27,6 @@
                                 <td><?= isset($pk['jumlah_kulit']) ? esc($pk['jumlah_kulit']) : '-'; ?></td>
                                 <td><?= isset($pk['jumlah_ayam']) ? esc($pk['jumlah_ayam']) : '-'; ?></td>
                                 <td><?= isset($pk['jumlah_sapi']) ? esc($pk['jumlah_sapi']) : '-'; ?></td>
-                                <td><?= isset($pk['status']) ? esc($pk['status']) : '-'; ?></td>
                                 <td>
                                     <a href="<?= base_url('admin/perintah-kerja/detail/' . $pk['id']); ?>" class="btn btn-info btn-sm">Detail</a>
                                     <a href="<?= base_url('admin/perintah-kerja/hapus/' . $pk['id']); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus perintah kerja ini?');">Hapus</a>

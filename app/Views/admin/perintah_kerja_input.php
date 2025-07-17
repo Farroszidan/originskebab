@@ -3,14 +3,14 @@
 
 <div class="container-fluid">
     <h1 class="h3 mb-4 text-gray-800">Input Perintah Kerja Produksi BSJ</h1>
-    <form action="<?= base_url('admin/perintah-kerja/simpan'); ?>" method="post">
+    <form id="form-perintah-kerja" action="<?= base_url('admin/perintah-kerja/simpan'); ?>" method="post">
         <div class="card mb-4">
             <div class="card-header font-weight-bold">Input Produksi BSJ</div>
             <div class="card-body">
                 <div class="form-row align-items-end">
                     <div class="form-group col-md-5">
                         <label>Pilih BSJ</label>
-                        <select name="bsj_id" id="bsj_id" class="form-control" required>
+                        <select name="bsj_id" id="bsj_id" class="form-control">
                             <option value="">-- Pilih BSJ --</option>
                             <?php foreach ($bsj as $item) : ?>
                                 <option value="<?= $item['id']; ?>" data-satuan="<?= esc($item['satuan']); ?>"><?= esc($item['nama']); ?> (<?= esc($item['satuan']); ?>)</option>
@@ -52,31 +52,7 @@
             </div>
         </div>
 
-        <div class="card mb-4">
-            <div class="card-header font-weight-bold">Distribusi BSJ ke Outlet</div>
-            <div class="card-body">
-                <table class="table table-bordered">
-                    <thead class="thead-light">
-                        <tr>
-                            <th>Outlet</th>
-                            <th>Kulit Kebab</th>
-                            <th>Olahan Daging Ayam</th>
-                            <th>Olahan Daging Sapi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($outlets as $outlet): ?>
-                            <tr>
-                                <td><?= esc($outlet['nama_outlet']) ?></td>
-                                <td><input type="number" name="distribusi[<?= $outlet['id'] ?>][kulit]" class="form-control" min="0" value="0"></td>
-                                <td><input type="number" name="distribusi[<?= $outlet['id'] ?>][ayam]" class="form-control" min="0" value="0"></td>
-                                <td><input type="number" name="distribusi[<?= $outlet['id'] ?>][sapi]" class="form-control" min="0" value="0"></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <!-- Distribusi BSJ ke Outlet section removed as requested -->
 
         <div class="form-group">
             <button type="submit" class="btn btn-success">Simpan Perintah Kerja</button>
@@ -115,32 +91,60 @@
             document.getElementById('preview-kebutuhan').innerHTML = '';
             return;
         }
-        // Hitung kebutuhan bahan
-        const gramPerPorsi = 45;
+        // Hitung kebutuhan bahan berdasarkan input jumlah porsi
         let kebutuhan = [];
         let totalBiaya = 0;
+        // Komposisi per 1kg, 1 porsi = 45g, 1kg = 1000g => 22.2222 porsi per 1kg
+        const porsiPerKg = 1000 / 45;
+        // Deteksi BSJ kulit kebab dari nama BSJ
+        const bsjNama = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent.toLowerCase() : '';
+        const isKulitKebab = bsjNama.includes('kulit kebab');
         komposisiData.forEach(k => {
             if (k.id_bsj == bsjId) {
-                let totalJumlahGram = 0;
-                if (satuan === 'pcs') totalJumlahGram = jumlah * parseFloat(k.jumlah);
-                else totalJumlahGram = jumlah * gramPerPorsi;
-                const totalJumlahKg = totalJumlahGram / 1000;
                 const bahan = bahanData.find(b => b.id == k.id_bahan);
-                const harga = parseFloat(bahan.harga_satuan);
-                const subtotal = totalJumlahKg * harga;
+                let satuanBahan = bahan && bahan.satuan ? bahan.satuan : 'kg';
+                let totalJumlah = 0;
+                if (isKulitKebab) {
+                    // Untuk kulit kebab, kebutuhan = komposisi asli * jumlah (tidak dibagi 22,22)
+                    if (satuanBahan === 'kg' || satuanBahan === 'liter') {
+                        totalJumlah = (parseFloat(k.jumlah) / 1000) * jumlah;
+                    } else {
+                        totalJumlah = parseFloat(k.jumlah) * jumlah;
+                    }
+                } else if (bahan.kategori === 'baku' && (bahan.nama.toLowerCase().includes('daging sapi') || bahan.nama.toLowerCase().includes('daging ayam'))) {
+                    satuanBahan = 'kg';
+                    totalJumlah = jumlah * 0.045;
+                } else {
+                    // Bahan lain: (komposisi/1000)/22.2222 * jumlah porsi
+                    let komposisiPerKg = parseFloat(k.jumlah) / 1000;
+                    let kebutuhanPerPorsi = komposisiPerKg / porsiPerKg;
+                    totalJumlah = kebutuhanPerPorsi * jumlah;
+                }
+                // Hitung subtotal
+                let subtotal = 0;
+                if (satuanBahan === 'liter' || satuanBahan === 'kg') {
+                    subtotal = totalJumlah * parseFloat(bahan.harga_satuan);
+                } else if (satuanBahan === 'ml') {
+                    subtotal = (totalJumlah / 1000) * parseFloat(bahan.harga_satuan);
+                } else if (satuanBahan === 'pcs' || satuanBahan === 'butir') {
+                    subtotal = totalJumlah * parseFloat(bahan.harga_satuan);
+                } else {
+                    subtotal = totalJumlah * parseFloat(bahan.harga_satuan);
+                }
                 totalBiaya += subtotal;
                 kebutuhan.push({
                     nama: bahan.nama,
                     kategori: bahan.kategori,
-                    jumlahKg: totalJumlahKg,
-                    harga,
+                    jumlah: totalJumlah,
+                    satuan: satuanBahan,
+                    harga: bahan.harga_satuan,
                     subtotal
                 });
             }
         });
         let html = '<b>Kebutuhan Bahan:</b><ul>';
         kebutuhan.forEach(b => {
-            html += `<li>${b.nama} (${b.kategori}): ${b.jumlahKg.toFixed(2)} kg, Rp ${b.subtotal.toLocaleString('id-ID')}</li>`;
+            html += `<li>${b.nama} (${b.kategori}): ${b.jumlah.toFixed(2)} ${b.satuan}, Rp ${b.subtotal.toLocaleString('id-ID')}</li>`;
         });
         html += `</ul><b>Total Biaya:</b> Rp ${totalBiaya.toLocaleString('id-ID')}`;
         document.getElementById('preview-kebutuhan').innerHTML = html;
@@ -152,25 +156,48 @@
         const satuan = select.options[select.selectedIndex] ? select.options[select.selectedIndex].getAttribute('data-satuan') : '';
         const jumlah = parseInt(document.getElementById('input-jumlah').value) || 0;
         if (!bsjId || jumlah <= 0) return;
-        // Hitung kebutuhan bahan
-        const gramPerPorsi = 45;
+        // Hitung kebutuhan bahan berdasarkan input jumlah porsi
         let kebutuhan = [];
         let totalBiaya = 0;
+        const porsiPerKg = 1000 / 45;
+        const bsjNama = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent.toLowerCase() : '';
+        const isKulitKebab = bsjNama.includes('kulit kebab');
         komposisiData.forEach(k => {
             if (k.id_bsj == bsjId) {
-                let totalJumlahGram = 0;
-                if (satuan === 'pcs') totalJumlahGram = jumlah * parseFloat(k.jumlah);
-                else totalJumlahGram = jumlah * gramPerPorsi;
-                const totalJumlahKg = totalJumlahGram / 1000;
                 const bahan = bahanData.find(b => b.id == k.id_bahan);
-                const harga = parseFloat(bahan.harga_satuan);
-                const subtotal = totalJumlahKg * harga;
+                let satuanBahan = bahan && bahan.satuan ? bahan.satuan : 'kg';
+                let totalJumlah = 0;
+                if (isKulitKebab) {
+                    if (satuanBahan === 'kg' || satuanBahan === 'liter') {
+                        totalJumlah = (parseFloat(k.jumlah) / 1000) * jumlah;
+                    } else {
+                        totalJumlah = parseFloat(k.jumlah) * jumlah;
+                    }
+                } else if (bahan.kategori === 'baku' && (bahan.nama.toLowerCase().includes('daging sapi') || bahan.nama.toLowerCase().includes('daging ayam'))) {
+                    satuanBahan = 'kg';
+                    totalJumlah = jumlah * 0.045;
+                } else {
+                    let komposisiPerKg = parseFloat(k.jumlah) / 1000;
+                    let kebutuhanPerPorsi = komposisiPerKg / porsiPerKg;
+                    totalJumlah = kebutuhanPerPorsi * jumlah;
+                }
+                let subtotal = 0;
+                if (satuanBahan === 'liter' || satuanBahan === 'kg') {
+                    subtotal = totalJumlah * parseFloat(bahan.harga_satuan);
+                } else if (satuanBahan === 'ml') {
+                    subtotal = (totalJumlah / 1000) * parseFloat(bahan.harga_satuan);
+                } else if (satuanBahan === 'pcs' || satuanBahan === 'butir') {
+                    subtotal = totalJumlah * parseFloat(bahan.harga_satuan);
+                } else {
+                    subtotal = totalJumlah * parseFloat(bahan.harga_satuan);
+                }
                 totalBiaya += subtotal;
                 kebutuhan.push({
                     nama: bahan.nama,
                     kategori: bahan.kategori,
-                    jumlahKg: totalJumlahKg,
-                    harga,
+                    jumlah: totalJumlah,
+                    satuan: satuanBahan,
+                    harga: bahan.harga_satuan,
                     subtotal
                 });
             }
@@ -190,28 +217,121 @@
         document.getElementById('preview-kebutuhan').innerHTML = '';
     });
 
+    // Validasi submit: jika daftarProduksi kosong, cegah submit
+    document.getElementById('form-perintah-kerja').addEventListener('submit', function(e) {
+        if (daftarProduksi.length === 0) {
+            alert('Silakan tambahkan minimal satu item produksi ke daftar sebelum menyimpan!');
+            e.preventDefault();
+            return false;
+        }
+        // Gabungkan kebutuhan bahan yang sama dari semua daftarProduksi
+        let bahanGabungan = {};
+        daftarProduksi.forEach(item => {
+            item.kebutuhan.forEach(bahan => {
+                let key = bahan.nama + '|' + bahan.satuan;
+                if (!bahanGabungan[key]) {
+                    bahanGabungan[key] = {
+                        nama: bahan.nama,
+                        kategori: bahan.kategori,
+                        jumlah: 0,
+                        satuan: bahan.satuan,
+                        harga: bahan.harga,
+                        subtotal: 0
+                    };
+                }
+                bahanGabungan[key].jumlah += parseFloat(bahan.jumlah);
+                bahanGabungan[key].subtotal += parseFloat(bahan.subtotal);
+            });
+        });
+        // Hapus input hidden lama
+        document.querySelectorAll('.input-daftar-produksi').forEach(el => el.remove());
+        // Simpan data utama produksi
+        daftarProduksi.forEach((item, idx) => {
+            let inputBsj = document.createElement('input');
+            inputBsj.type = 'hidden';
+            inputBsj.name = `daftarProduksi[${idx}][bsjId]`;
+            inputBsj.value = item.bsjId;
+            inputBsj.className = 'input-daftar-produksi';
+            this.appendChild(inputBsj);
+            let inputJumlah = document.createElement('input');
+            inputJumlah.type = 'hidden';
+            inputJumlah.name = `daftarProduksi[${idx}][jumlah]`;
+            inputJumlah.value = item.jumlah;
+            inputJumlah.className = 'input-daftar-produksi';
+            this.appendChild(inputJumlah);
+        });
+        // Simpan kebutuhan bahan gabungan
+        let idx = 0;
+        for (let key in bahanGabungan) {
+            let bahan = bahanGabungan[key];
+            let inputNama = document.createElement('input');
+            inputNama.type = 'hidden';
+            inputNama.name = `kebutuhanBahanGabungan[${idx}][nama]`;
+            inputNama.value = bahan.nama;
+            inputNama.className = 'input-daftar-produksi';
+            this.appendChild(inputNama);
+            let inputKategori = document.createElement('input');
+            inputKategori.type = 'hidden';
+            inputKategori.name = `kebutuhanBahanGabungan[${idx}][kategori]`;
+            inputKategori.value = bahan.kategori;
+            inputKategori.className = 'input-daftar-produksi';
+            this.appendChild(inputKategori);
+            let inputJumlah = document.createElement('input');
+            inputJumlah.type = 'hidden';
+            inputJumlah.name = `kebutuhanBahanGabungan[${idx}][jumlah]`;
+            inputJumlah.value = bahan.jumlah;
+            inputJumlah.className = 'input-daftar-produksi';
+            this.appendChild(inputJumlah);
+            let inputSatuan = document.createElement('input');
+            inputSatuan.type = 'hidden';
+            inputSatuan.name = `kebutuhanBahanGabungan[${idx}][satuan]`;
+            inputSatuan.value = bahan.satuan;
+            inputSatuan.className = 'input-daftar-produksi';
+            this.appendChild(inputSatuan);
+            let inputHarga = document.createElement('input');
+            inputHarga.type = 'hidden';
+            inputHarga.name = `kebutuhanBahanGabungan[${idx}][harga]`;
+            inputHarga.value = bahan.harga;
+            inputHarga.className = 'input-daftar-produksi';
+            this.appendChild(inputHarga);
+            let inputSubtotal = document.createElement('input');
+            inputSubtotal.type = 'hidden';
+            inputSubtotal.name = `kebutuhanBahanGabungan[${idx}][subtotal]`;
+            inputSubtotal.value = bahan.subtotal;
+            inputSubtotal.className = 'input-daftar-produksi';
+            this.appendChild(inputSubtotal);
+            idx++;
+        }
+    });
+
     function renderDaftarProduksi() {
         const tbody = document.querySelector('#tabel-daftar-bsj tbody');
         tbody.innerHTML = '';
         let totalBiayaAll = 0;
         daftarProduksi.forEach((item, idx) => {
             let kebutuhanHtml = '<ul>';
-            item.kebutuhan.forEach(b => {
-                kebutuhanHtml += `<li>${b.nama} (${b.kategori}): ${b.jumlahKg.toFixed(2)} kg, Rp ${b.subtotal.toLocaleString('id-ID')}</li>`;
-            });
-            kebutuhanHtml += '</ul>';
-            totalBiayaAll += item.totalBiaya;
             // Cari nama BSJ dari data $bsj
             let namaBsj = '';
+            let satuanTampil = item.satuan;
             <?php if (!empty($bsj)) : ?>
                 const bsjArr = <?php echo json_encode($bsj); ?>;
                 const found = bsjArr.find(b => b.id == item.bsjId);
-                if (found) namaBsj = found.nama + ' (' + found.satuan + ')';
+                if (found) {
+                    namaBsj = found.nama + ' (' + found.satuan + ')';
+                    // Jika olahan daging ayam/sapi, satuan porsi
+                    const namaLower = found.nama.toLowerCase();
+                    if (namaLower.includes('daging ayam') || namaLower.includes('daging sapi')) satuanTampil = 'porsi';
+                }
             <?php endif; ?>
+            item.kebutuhan.forEach(b => {
+                kebutuhanHtml += `<li>${b.nama} (${b.kategori}): ${b.jumlah.toFixed(2)} ${b.satuan}, Rp ${b.subtotal.toLocaleString('id-ID')}</li>`;
+            });
+            kebutuhanHtml += '</ul>';
+            totalBiayaAll += item.totalBiaya;
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${namaBsj}</td>
-                <td>${item.jumlah} ${item.satuan ? '('+item.satuan+')' : ''}</td>
+                <td>${item.jumlah} (${satuanTampil})</td>
                 <td>${kebutuhanHtml}</td>
                 <td>Rp ${item.totalBiaya.toLocaleString('id-ID')}</td>
                 <td><button type="button" class="btn btn-danger btn-sm" onclick="hapusProduksi(${idx})">Hapus</button></td>
