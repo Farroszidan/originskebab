@@ -370,4 +370,20 @@ class AkunModel extends Model
 
         return $builder->get()->getRowArray();
     }
+
+    public function updateSaldo($kode_akun, $jumlah, $tipe)
+    {
+        $akun = $this->where('kode_akun', $kode_akun)->first();
+        if (!$akun) return false;
+
+        $field = $tipe === 'debit' ? 'saldo_awal' : 'saldo_awal';
+
+        if ($akun['tipe'] === $tipe) {
+            $akun[$field] += $jumlah;
+        } else {
+            $akun[$field] -= $jumlah;
+        }
+
+        return $this->update($akun['id'], ['saldo_awal' => $akun[$field]]);
+    }
 }

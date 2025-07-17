@@ -23,6 +23,7 @@ use App\Models\BSJModel;
 use App\Models\BahanModel;
 use App\Models\HPPModel;
 use App\Models\BtklModel;
+use App\Models\AkunModel;
 use CodeIgniter\I18n\Time;
 use Myth\Auth\Authorization\GroupModel;
 use function auth;
@@ -477,8 +478,24 @@ class ManajemenPenjualan extends BaseController
         $postData['outlet_id'] = $outlet_id;
         $postData['metode_pembayaran'] = $this->request->getPost('metode_pembayaran');
         $postData['jenis_cashless'] = $this->request->getPost('jenis_cashless') ?? null;
+        $akunModel = new AkunModel();
 
         if ($postData['metode_pembayaran'] === 'cashless') {
+            // Tentukan kode akun berdasarkan jenis cashless
+            $cashlessKodeMap = [
+                'qris' => 110,
+                'gofood' => 111,
+                'grabfood' => 112,
+                'shopeefood' => 113,
+            ];
+            $kodeAkunCashless = $cashlessKodeMap[$postData['jenis_cashless']] ?? null;
+            if ($kodeAkunCashless) {
+                // Tambah saldo ke akun cashless (Debit)
+                $akunModel->updateSaldo($kodeAkunCashless, $postData['grand_total'], 'debit');
+            }
+
+            // Tambah ke akun Penjualan (Kredit)
+            $akunModel->updateSaldo(401, $postData['grand_total'], 'kredit');
             $postData['dibayar'] = $postData['grand_total'];
             $postData['kembalian'] = 0;
         }
@@ -539,6 +556,42 @@ class ManajemenPenjualan extends BaseController
             ];
 
             $jualModel->insert($dataJual);
+
+            // Tambahkan ini setelah insert transaksi dan sebelum commit
+            if ($postData['metode_pembayaran'] === 'cashless' && isset($kodeAkunCashless)) {
+                $db = \Config\Database::connect();
+                $akunModel = new \App\Models\AkunModel();
+
+                // Ambil akun piutang (kas digital) berdasarkan kode
+                $akunPiutang = $akunModel->where('kode_akun', $kodeAkunCashless)->first();
+                $akunPenjualan = $akunModel->where('kode_akun', 401)->first(); // Kode akun penjualan
+
+                if ($akunPiutang && $akunPenjualan) {
+                    $jurnal = $db->table('jurnal_umum');
+                    $tanggal = $postData['tgl_jual'];
+                    $grandTotal = $postData['grand_total'];
+                    $keterangan = 'Penjualan via ' . strtoupper($postData['jenis_cashless']);
+
+                    // Debit ke Piutang (akun QRIS, GoFood, dll)
+                    $jurnal->insert([
+                        'tanggal' => $tanggal,
+                        'akun_id' => $akunPiutang['id'],
+                        'debit' => $grandTotal,
+                        'kredit' => 0,
+                        'keterangan' => 'Piutang dari ' . $keterangan,
+                    ]);
+
+                    // Kredit ke Penjualan
+                    $jurnal->insert([
+                        'tanggal' => $tanggal,
+                        'akun_id' => $akunPenjualan['id'],
+                        'debit' => 0,
+                        'kredit' => $grandTotal,
+                        'keterangan' => $keterangan,
+                    ]);
+                }
+            }
+
             $idJual = $jualModel->getInsertID();
 
             $mapBahan = [

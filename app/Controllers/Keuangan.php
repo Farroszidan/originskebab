@@ -478,22 +478,23 @@ class Keuangan extends BaseController
             $start = date('Y-m-01');
             $end = date('Y-m-t');
         }
+        $kode_piutang = ['110', '111', '112', '113']; // sesuaikan jika perlu
+        $kode_piutang_in = "'" . implode("','", $kode_piutang) . "'";
 
         $query = $db->query("
-        SELECT 
-            akun.kode_akun,
-            akun.nama_akun,
-            SUM(jurnal_umum.debit) AS total_debit,
-            SUM(jurnal_umum.kredit) AS total_kredit
-        FROM jurnal_umum
-        JOIN akun ON akun.id = jurnal_umum.akun_id
-        WHERE akun.jenis_akun = 'aset'
-        AND akun.nama_akun LIKE '%Piutang%'
-        AND jurnal_umum.tanggal BETWEEN '$start' AND '$end'
-        GROUP BY akun.kode_akun, akun.nama_akun
-        HAVING SUM(jurnal_umum.debit) - SUM(jurnal_umum.kredit) != 0
-        ORDER BY akun.nama_akun ASC
-    ");
+    SELECT 
+        akun.kode_akun,
+        akun.nama_akun,
+        SUM(jurnal_umum.debit) AS total_debit,
+        SUM(jurnal_umum.kredit) AS total_kredit
+    FROM jurnal_umum
+    JOIN akun ON akun.id = jurnal_umum.akun_id
+    WHERE akun.kode_akun IN ($kode_piutang_in)
+    AND jurnal_umum.tanggal BETWEEN '$start' AND '$end'
+    GROUP BY akun.kode_akun, akun.nama_akun
+    HAVING SUM(jurnal_umum.debit) - SUM(jurnal_umum.kredit) != 0
+    ORDER BY akun.nama_akun ASC
+");
 
         $piutang = $query->getResultArray();
 
