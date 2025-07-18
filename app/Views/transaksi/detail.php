@@ -112,6 +112,77 @@
                     </div>
                 <?php endif; ?>
 
+            <?php elseif ($jenis === 'perintah_kerja'): ?>
+                <p><strong>Tanggal:</strong> <?= esc($data['tanggal']) ?></p>
+                <p><strong>Catatan:</strong> <?= esc($data['catatan'] ?? '-') ?></p>
+
+                <div class="card mb-4">
+                    <div class="card-header font-weight-bold">Daftar Produksi</div>
+                    <div class="card-body">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>BSJ</th>
+                                    <th>Jumlah</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Kulit Kebab</td>
+                                    <td><?= esc($data['jumlah_kulit'] ?? '0') ?></td>
+                                </tr>
+                                <tr>
+                                    <td>Olahan Daging Ayam</td>
+                                    <td><?= esc($data['jumlah_ayam'] ?? '0') ?></td>
+                                </tr>
+                                <tr>
+                                    <td>Olahan Daging Sapi</td>
+                                    <td><?= esc($data['jumlah_sapi'] ?? '0') ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <?php $totalBiaya = 0; ?>
+
+                <?php if (!empty($detail)): ?>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-bordered table-hover table-sm">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama Bahan</th>
+                                    <th>Jumlah</th>
+                                    <th>Satuan</th>
+                                    <th>Harga Satuan</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($detail as $i => $item):
+                                    $subtotal = ($item['jumlah'] ?? 0) * ($item['harga_satuan'] ?? 0);
+                                    $totalBiaya += $subtotal;
+                                ?>
+                                    <tr>
+                                        <td><?= $i + 1 ?></td>
+                                        <td><?= esc($item['nama_bahan'] ?? '-') ?></td>
+                                        <td><?= esc($item['jumlah'] ?? '0') ?></td>
+                                        <td><?= esc($item['satuan'] ?? '-') ?></td>
+                                        <td>Rp <?= number_format($item['harga_satuan'] ?? 0, 0, ',', '.') ?></td>
+                                        <td>Rp <?= number_format($subtotal, 0, ',', '.') ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                <tr class="table-info font-weight-bold">
+                                    <td colspan="5" class="text-right">Total Biaya Bahan</td>
+                                    <td>Rp <?= number_format($totalBiaya, 0, ',', '.') ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-warning mt-3">Tidak ada kebutuhan bahan.</div>
+                <?php endif; ?>
             <?php else: ?>
                 <div class="alert alert-danger">Data tidak tersedia.</div>
             <?php endif; ?>

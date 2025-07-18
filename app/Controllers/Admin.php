@@ -1266,22 +1266,30 @@ class Admin extends BaseController
                 }
             }
         }
-        // Simpan perintah kerja utama
+        // Simpan perintah kerja utama, tambahkan field 'bsj' untuk daftar BSJ yang harus diproduksi
         $idPerintah = $perintahKerjaModel->insert([
             'tanggal' => $tanggal,
             'jumlah_kulit' => $jumlah_kulit,
             'jumlah_ayam' => $jumlah_ayam,
             'jumlah_sapi' => $jumlah_sapi,
             'total_biaya' => $total_biaya,
+            'bsj' => json_encode($daftarProduksi),
         ], true);
 
-        // Simpan detail kebutuhan bahan
-        if ($daftarProduksi && is_array($daftarProduksi)) {
-            foreach ($daftarProduksi as $item) {
+        // Simpan kebutuhan bahan gabungan (rangkuman)
+        $kebutuhanGabungan = $this->request->getPost('kebutuhanBahanGabungan');
+        if ($kebutuhanGabungan && is_array($kebutuhanGabungan)) {
+            foreach ($kebutuhanGabungan as $bahan) {
                 $detailModel->insert([
                     'perintah_kerja_id' => $idPerintah,
-                    'jenis_bsj' => $item['bsjId'],
-                    'jumlah' => $item['jumlah'],
+                    'kode_bahan' => $bahan['kode_bahan'] ?? '',
+                    'jenis_bsj' => $bahan['nama'],
+                    'nama_bahan' => $bahan['nama'] ?? '',
+                    'jumlah' => $bahan['jumlah'],
+                    'kategori' => $bahan['kategori'] ?? '',
+                    'satuan' => $bahan['satuan'] ?? '',
+                    'harga_satuan' => $bahan['harga'] ?? 0,
+                    'subtotal' => $bahan['subtotal'] ?? 0,
                 ]);
             }
         }
@@ -1301,17 +1309,58 @@ class Admin extends BaseController
             }
         }
 
-        // Simpan notifikasi ke bagian produksi dan keuangan
-        $notifikasiModel->insert([
-            'pesan' => 'Ada perintah kerja produksi BSJ baru pada tanggal ' . $tanggal,
-            'role' => 'produksi',
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
-        $notifikasiModel->insert([
-            'pesan' => 'Ada perintah kerja produksi BSJ baru pada tanggal ' . $tanggal,
-            'role' => 'keuangan',
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
+        // Siapkan data detail perintah kerja untuk notifikasi
+        $perintahKerja = $perintahKerjaModel->find($idPerintah);
+        $detailBahan = $detailModel->where('perintah_kerja_id', $idPerintah)->findAll();
+        $detailText = "";
+        foreach ($detailBahan as $bahan) {
+            $detailText .= "- " . ($bahan['nama_bahan'] ?? '-') . " (" . ($bahan['jumlah'] ?? 0) . " " . ($bahan['satuan'] ?? '-') . ")\n";
+        }
+        $pesan = "Perintah Kerja Baru:\n" .
+            "Tanggal: " . ($perintahKerja['tanggal'] ?? '-') . "\n" .
+            "Jumlah Kulit: " . ($perintahKerja['jumlah_kulit'] ?? 0) . "\n" .
+            "Jumlah Ayam: " . ($perintahKerja['jumlah_ayam'] ?? 0) . "\n" .
+            "Jumlah Sapi: " . ($perintahKerja['jumlah_sapi'] ?? 0) . "\n" .
+            "Total Biaya: Rp " . number_format($perintahKerja['total_biaya'] ?? 0, 0, ',', '.') . "\n" .
+            "Kebutuhan Bahan:\n" . $detailText;
+
+        // Ambil user produksi dan keuangan
+        $db = \Config\Database::connect();
+        $users_produksi = $db->table('users')
+            ->select('users.id')
+            ->join('auth_groups_users', 'auth_groups_users.user_id = users.id')
+            ->join('auth_groups', 'auth_groups.id = auth_groups_users.group_id')
+            ->where('auth_groups.name', 'produksi')
+            ->get()->getResultArray();
+        $users_keuangan = $db->table('users')
+            ->select('users.id')
+            ->join('auth_groups_users', 'auth_groups_users.user_id = users.id')
+            ->join('auth_groups', 'auth_groups.id = auth_groups_users.group_id')
+            ->where('auth_groups.name', 'keuangan')
+            ->get()->getResultArray();
+
+        // Kirim notifikasi ke semua user produksi
+        foreach ($users_produksi as $user) {
+            $notifikasiModel->insert([
+                'user_id' => $user['id'],
+                'isi' => $pesan,
+                'tipe' => 'perintah_kerja',
+                'relasi_id' => $idPerintah,
+                'dibaca' => 0,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+        // Kirim notifikasi ke semua user keuangan
+        foreach ($users_keuangan as $user) {
+            $notifikasiModel->insert([
+                'user_id' => $user['id'],
+                'isi' => $pesan,
+                'tipe' => 'perintah_kerja',
+                'relasi_id' => $idPerintah,
+                'dibaca' => 0,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
 
         return redirect()->to('admin/perintah-kerja')->with('success', 'Perintah Kerja berhasil disimpan.');
     }
@@ -1322,11 +1371,31 @@ class Admin extends BaseController
         $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
         $distribusiModel = new \App\Models\DistribusiBSJModel();
         $detailModel = new \App\Models\DetailPerintahKerjaModel();
+        $bahanModel = new \App\Models\BahanModel();
+
+        // Ambil data detail bahan langsung dari tabel detail_perintah_kerja
+        $detail_bahan_raw = $detailModel->where('perintah_kerja_id', $id)->findAll();
+        $detail_bahan = [];
+        $total_biaya_bahan = 0;
+        foreach ($detail_bahan_raw as $b) {
+            // Gunakan nama_bahan langsung dari tabel detail_perintah_kerja
+            $nama_bahan = $b['nama_bahan'] ?? '-';
+            $detail_bahan[] = [
+                'nama' => $nama_bahan,
+                'kategori' => $b['kategori'] ?? '',
+                'jumlah' => $b['jumlah'] ?? 0,
+                'satuan' => $b['satuan'] ?? '',
+                'harga' => $b['harga_satuan'] ?? 0,
+                'subtotal' => $b['subtotal'] ?? 0,
+            ];
+            $total_biaya_bahan += $b['subtotal'] ?? 0;
+        }
         $data = [
             'tittle' => 'Detail Perintah Kerja',
             'perintah' => $perintahKerjaModel->find($id),
             'distribusi' => $distribusiModel->where('perintah_kerja_id', $id)->findAll(),
-            'detail' => $detailModel->where('perintah_kerja_id', $id)->findAll(),
+            'detail_bahan' => $detail_bahan,
+            'total_biaya_bahan' => $total_biaya_bahan,
         ];
         return view('admin/perintah_kerja_detail', $data);
     }

@@ -49,6 +49,10 @@
                 <div class="mt-3">
                     <h5>Total Biaya Bahan: <span id="total-biaya-bahan">Rp 0</span></h5>
                 </div>
+                <div class="mt-3">
+                    <button type="button" class="btn btn-info" id="btn-rangkum-bahan">Rangkum Kebutuhan Bahan</button>
+                </div>
+                <div class="mt-3" id="tabel-rangkuman-bahan"></div>
             </div>
         </div>
 
@@ -63,6 +67,62 @@
 
 <!-- Script kebutuhan bahan interaktif -->
 <script>
+    // Fungsi untuk merangkum kebutuhan bahan dari semua produksi
+    function getRangkumanBahan() {
+        let bahanGabungan = {};
+        daftarProduksi.forEach(item => {
+            item.kebutuhan.forEach(bahan => {
+                let key = bahan.nama + '|' + bahan.satuan;
+                if (!bahanGabungan[key]) {
+                    bahanGabungan[key] = {
+                        nama: bahan.nama,
+                        kategori: bahan.kategori,
+                        jumlah: 0,
+                        satuan: bahan.satuan,
+                        harga: bahan.harga,
+                        subtotal: 0
+                    };
+                }
+                bahanGabungan[key].jumlah += parseFloat(bahan.jumlah);
+                bahanGabungan[key].subtotal += parseFloat(bahan.subtotal);
+            });
+        });
+        return Object.values(bahanGabungan);
+    }
+
+    // Event tombol rangkum
+    document.getElementById('btn-rangkum-bahan').addEventListener('click', function() {
+        const rangkuman = getRangkumanBahan();
+        let html = '<h5>Rangkuman Kebutuhan Bahan</h5>';
+        html += '<table class="table table-bordered">';
+        html += '<thead><tr>' +
+            '<th>Nama Bahan</th>' +
+            '<th>Kategori</th>' +
+            '<th>Jumlah Total</th>' +
+            '<th>Satuan</th>' +
+            '<th>Harga Satuan</th>' +
+            '<th>Subtotal</th>' +
+            '</tr></thead><tbody>';
+        let totalBiaya = 0;
+        if (rangkuman.length > 0) {
+            rangkuman.forEach(b => {
+                html += `<tr>
+                    <td>${b.nama}</td>
+                    <td>${b.kategori}</td>
+                    <td>${b.jumlah.toFixed(2)}</td>
+                    <td>${b.satuan}</td>
+                    <td>Rp ${parseInt(b.harga).toLocaleString('id-ID')}</td>
+                    <td>Rp ${parseInt(b.subtotal).toLocaleString('id-ID')}</td>
+                </tr>`;
+                totalBiaya += b.subtotal;
+            });
+            html += `<tr><td colspan="5" class="text-right"><b>Total Biaya Bahan</b></td><td><b>Rp ${parseInt(totalBiaya).toLocaleString('id-ID')}</b></td></tr>`;
+        } else {
+            html += '<tr><td colspan="6">Belum ada data kebutuhan bahan.</td></tr>';
+        }
+        html += '</tbody></table>';
+        document.getElementById('tabel-rangkuman-bahan').innerHTML = html;
+    });
     const komposisiData = <?= json_encode($komposisi_bsj); ?>;
     const bahanData = <?= json_encode($bahan_all); ?>;
 

@@ -11,18 +11,6 @@
                         <th>Tanggal</th>
                         <td><?= date('d-m-Y', strtotime($perintah['tanggal'])); ?></td>
                     </tr>
-                    <tr>
-                        <th>Jumlah Kulit</th>
-                        <td><?= esc($perintah['jumlah_kulit'] ?? '-'); ?></td>
-                    </tr>
-                    <tr>
-                        <th>Jumlah Ayam</th>
-                        <td><?= esc($perintah['jumlah_ayam'] ?? '-'); ?></td>
-                    </tr>
-                    <tr>
-                        <th>Jumlah Sapi</th>
-                        <td><?= esc($perintah['jumlah_sapi'] ?? '-'); ?></td>
-                    </tr>
                 </table>
             </div>
         </div>
@@ -37,18 +25,18 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (!empty($produksi)) {
-                            foreach ($produksi as $d) { ?>
-                                <tr>
-                                    <td><?= esc($d['jenis_bsj']) ?></td>
-                                    <td><?= esc($d['jumlah']) ?></td>
-                                </tr>
-                            <?php }
-                        } else { ?>
-                            <tr>
-                                <td colspan="2">Belum ada data.</td>
-                            </tr>
-                        <?php } ?>
+                        <tr>
+                            <td>Kulit Kebab</td>
+                            <td><?= esc($perintah['jumlah_kulit'] ?? '0') ?></td>
+                        </tr>
+                        <tr>
+                            <td>Olahan Daging Ayam</td>
+                            <td><?= esc($perintah['jumlah_ayam'] ?? '0') ?></td>
+                        </tr>
+                        <tr>
+                            <td>Olahan Daging Sapi</td>
+                            <td><?= esc($perintah['jumlah_sapi'] ?? '0') ?></td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -69,31 +57,10 @@
                     </thead>
                     <tbody>
                         <?php
-                        // Gabungkan kebutuhan bahan dari semua produksi
-                        $bahanGabungan = [];
-                        $totalBiayaBahan = 0;
-                        if (!empty($kebutuhan_bahan)) {
-                            foreach ($kebutuhan_bahan as $item) {
-                                $key = $item['nama'] . '|' . $item['satuan'];
-                                if (!isset($bahanGabungan[$key])) {
-                                    $bahanGabungan[$key] = [
-                                        'nama' => $item['nama'],
-                                        'kategori' => $item['kategori'],
-                                        'jumlah' => 0,
-                                        'satuan' => $item['satuan'],
-                                        'harga' => $item['harga'],
-                                        'subtotal' => 0
-                                    ];
-                                }
-                                $bahanGabungan[$key]['jumlah'] += $item['jumlah'];
-                                $bahanGabungan[$key]['subtotal'] += $item['subtotal'];
-                                $totalBiayaBahan += $item['subtotal'];
-                            }
-                        }
-                        if (!empty($bahanGabungan)) {
-                            foreach ($bahanGabungan as $b) { ?>
+                        if (!empty($detail_bahan)) {
+                            foreach ($detail_bahan as $b) { ?>
                                 <tr>
-                                    <td><?= esc($b['nama']) ?></td>
+                                    <td><?= esc($b['nama'] ?? $b['jenis_bsj'] ?? '-') ?></td>
                                     <td><?= esc($b['kategori']) ?></td>
                                     <td><?= number_format($b['jumlah'], 2, ',', '.') ?></td>
                                     <td><?= esc($b['satuan']) ?></td>
@@ -104,7 +71,7 @@
                             ?>
                             <tr>
                                 <td colspan="5" class="text-right"><b>Total Biaya Bahan</b></td>
-                                <td><b>Rp <?= number_format($totalBiayaBahan, 0, ',', '.') ?></b></td>
+                                <td><b>Rp <?= number_format($total_biaya_bahan, 0, ',', '.') ?></b></td>
                             </tr>
                         <?php } else { ?>
                             <tr>

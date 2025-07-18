@@ -274,6 +274,7 @@ class Transaksi extends BaseController
 
         $model = null;
         $detail = [];
+        $total_biaya_bahan = 0;
 
         switch ($jenis) {
             case 'permintaan':
@@ -297,6 +298,33 @@ class Transaksi extends BaseController
             case 'bukti_pembelian':
                 $model = new \App\Models\BuktiPembelianModel();
                 break;
+            case 'perintah_kerja':
+                $model = new \App\Models\PerintahKerjaModel();
+                $detailModel = new \App\Models\DetailPerintahKerjaModel();
+                $detail_bahan_raw = $detailModel->where('perintah_kerja_id', $id)->findAll();
+                $detail = [];
+                foreach ($detail_bahan_raw as $b) {
+                    $detail[] = [
+                        'nama_bahan' => $b['nama_bahan'] ?? '-',
+                        'kategori' => $b['kategori'] ?? '',
+                        'jumlah' => $b['jumlah'] ?? 0,
+                        'satuan' => $b['satuan'] ?? '',
+                        'harga_satuan' => $b['harga_satuan'] ?? 0,
+                        'subtotal' => $b['subtotal'] ?? 0,
+                    ];
+                    $total_biaya_bahan += $b['subtotal'] ?? 0;
+                }
+                // Ambil data BSJ dari field di perintah_kerja
+                $bsjList = [];
+                $dataTemp = $model->find($id);
+                if ($dataTemp && !empty($dataTemp['bsj'])) {
+                    if (is_string($dataTemp['bsj'])) {
+                        $bsjList = json_decode($dataTemp['bsj'], true);
+                    } elseif (is_array($dataTemp['bsj'])) {
+                        $bsjList = $dataTemp['bsj'];
+                    }
+                }
+                break;
 
             default:
                 throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound("Jenis tidak dikenali.");
@@ -308,10 +336,16 @@ class Transaksi extends BaseController
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound("Data tidak ditemukan.");
         }
 
+        // Tambahkan data BSJ ke array data jika perintah_kerja
+        if ($jenis === 'perintah_kerja') {
+            $data['bsj'] = $bsjList;
+        }
+
         return view('transaksi/detail', [
             'jenis' => $jenis,
             'data'  => $data,
-            'detail' => $detail, // ← ini kita tambahkan
+            'detail' => $detail,
+            'total_biaya_bahan' => $total_biaya_bahan,
             'tittle' => 'SIOK | Detail ' . ucfirst(str_replace('_', ' ', $jenis))
         ]);
     }

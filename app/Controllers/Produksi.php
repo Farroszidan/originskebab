@@ -152,70 +152,44 @@ class Produksi extends BaseController
             'total' => $total
         ]);
 
-        // Jurnal otomatis ke neraca saldo
-        $neracaSaldoModel = model('NeracaSaldoModel');
+        // Update saldo akun sesuai transaksi
         if ($jenisPembelian === 'tunai') {
-            // Kas (101) berkurang di debet, Persediaan bahan penolong (108) bertambah di debet
-            $kas = $neracaSaldoModel->where('kode_akun', '101')->first();
-            if ($kas) {
-                $kasDebet = is_null($kas['debet']) ? 0 : $kas['debet'];
-                $neracaSaldoModel->update($kas['id'], [
-                    'debet' => $kasDebet - $total
-                ]);
-                // Update saldo_awal di tabel akun (kas)
-                $akunKas = $akunModel->where('kode_akun', '101')->first();
-                if ($akunKas) {
-                    $saldoKas = is_null($akunKas['saldo_awal']) ? 0 : $akunKas['saldo_awal'];
-                    $akunModel->update($akunKas['id'], [
-                        'saldo_awal' => $saldoKas - $total
-                    ]);
-                }
-            }
-            $penolong = $neracaSaldoModel->where('kode_akun', '108')->first();
-            if ($penolong) {
-                $penolongDebet = is_null($penolong['debet']) ? 0 : $penolong['debet'];
-                $neracaSaldoModel->update($penolong['id'], [
-                    'debet' => $penolongDebet + $total
-                ]);
-                // Update saldo_awal di tabel akun (persediaan bahan penolong)
-                $akunPenolong = $akunModel->where('kode_akun', '108')->first();
-                if ($akunPenolong) {
-                    $saldoPenolong = is_null($akunPenolong['saldo_awal']) ? 0 : $akunPenolong['saldo_awal'];
-                    $akunModel->update($akunPenolong['id'], [
-                        'saldo_awal' => $saldoPenolong + $total
-                    ]);
-                }
-            }
+            // Kas (101) berkurang (kredit)
+            $akunModel->updateSaldo(101, $total, 'kredit');
+            // Persediaan bahan penolong (108) bertambah (debit)
+            $akunModel->updateSaldo(108, $total, 'debit');
         } elseif ($jenisPembelian === 'kredit') {
-            $baku = $neracaSaldoModel->where('kode_akun', '107')->first();
-            if ($baku) {
-                $bakuDebet = is_null($baku['debet']) ? 0 : $baku['debet'];
-                $neracaSaldoModel->update($baku['id'], [
-                    'debet' => $bakuDebet + $total
+            // Persediaan bahan baku (107) bertambah (debit)
+            $akunModel->updateSaldo(107, $total, 'debit');
+            // Utang usaha (201) bertambah (kredit)
+            $akunModel->updateSaldo(201, $total, 'kredit');
+
+            // Catat jurnal umum untuk pembelian kredit
+            $db = \Config\Database::connect();
+            $akunPersediaan = $akunModel->where('kode_akun', 107)->first(); // Persediaan bahan baku
+            $akunUtang = $akunModel->where('kode_akun', 201)->first(); // Utang usaha
+            if ($akunPersediaan && $akunUtang) {
+                $jurnal = $db->table('jurnal_umum');
+                $grandTotal = $total;
+                $keterangan = 'Pembelian Kredit';
+
+                // Debit ke Persediaan bahan baku dan Kredit ke Utang usaha, satu baris saja
+                $jurnal->insert([
+                    'tanggal' => $tanggal,
+                    'akun_id' => $akunPersediaan['id'],
+                    'debit' => $grandTotal,
+                    'kredit' => 0,
+                    'keterangan' => $keterangan,
+                    'supplier_id' => $pemasokId,
                 ]);
-                // Update saldo_awal di tabel akun (persediaan bahan baku)
-                $akunBaku = $akunModel->where('kode_akun', '107')->first();
-                if ($akunBaku) {
-                    $saldoBaku = is_null($akunBaku['saldo_awal']) ? 0 : $akunBaku['saldo_awal'];
-                    $akunModel->update($akunBaku['id'], [
-                        'saldo_awal' => $saldoBaku + $total
-                    ]);
-                }
-            }
-            $utang = $neracaSaldoModel->where('kode_akun', '201')->first();
-            if ($utang) {
-                $utangKredit = is_null($utang['kredit']) ? 0 : $utang['kredit'];
-                $neracaSaldoModel->update($utang['id'], [
-                    'kredit' => $utangKredit + $total
+                $jurnal->insert([
+                    'tanggal' => $tanggal,
+                    'akun_id' => $akunUtang['id'],
+                    'debit' => 0,
+                    'kredit' => $grandTotal,
+                    'keterangan' => $keterangan,
+                    'supplier_id' => $pemasokId,
                 ]);
-                // Update saldo_awal di tabel akun (utang usaha)
-                $akunUtang = $akunModel->where('kode_akun', '201')->first();
-                if ($akunUtang) {
-                    $saldoUtang = is_null($akunUtang['saldo_awal']) ? 0 : $akunUtang['saldo_awal'];
-                    $akunModel->update($akunUtang['id'], [
-                        'saldo_awal' => $saldoUtang + $total
-                    ]);
-                }
             }
         }
 
