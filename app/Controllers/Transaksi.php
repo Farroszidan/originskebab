@@ -262,7 +262,6 @@ class Transaksi extends BaseController
     }
 
 
-
     public function detail($jenis, $id)
     {
         $notifikasiModel = new \App\Models\NotifikasiModel();

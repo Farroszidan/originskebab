@@ -33,7 +33,7 @@ Events::on('pre_system', static function (): void {
             ob_end_flush();
         }
 
-        ob_start(static fn ($buffer) => $buffer);
+        ob_start(static fn($buffer) => $buffer);
     }
 
     /*
@@ -52,4 +52,8 @@ Events::on('pre_system', static function (): void {
             });
         }
     }
+});
+
+Events::on('DBConnect', function ($db) {
+    $db->query("SET time_zone = '+07:00'");
 });
