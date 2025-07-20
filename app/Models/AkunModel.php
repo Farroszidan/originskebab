@@ -241,7 +241,7 @@ class AkunModel extends Model
         }
 
         // Ambil saldo awal dari akun Modal
-        $modalAwal = $this->where('nama_akun', 'Modal')->first()['saldo_awal'] ?? 0;
+        $modalAwal = $this->where('kode_akun', '301')->first()['saldo_awal'] ?? 0;
 
         // Hitung pendapatan, beban, prive dari awal tahun hingga sebelum periode ini
         $awalTahun = date('Y', strtotime($tanggalAkhir)) . '-01-01';
@@ -321,25 +321,27 @@ class AkunModel extends Model
         return $modalAwal + $labaBersih - $prive;
     }
 
-    public function getSaldoAkunSampaiTanggal($akunId, $tanggal)
+    public function getSaldoAkunSampaiTanggal($kodeAkun, $tanggal)
     {
-        $builder = $this->db->table('jurnal_umum');
+        $akun = $this->where('kode_akun', $kodeAkun)->first();
+        if (!$akun) {
+            return 0;
+        }
+
+        $db = \Config\Database::connect();
+        $builder = $db->table('jurnal_umum');
         $builder->selectSum('debit', 'total_debit');
         $builder->selectSum('kredit', 'total_kredit');
-        $builder->where('akun_id', $akunId);
+        $builder->where('akun_id', $akun['id']);
         $builder->where('tanggal <=', $tanggal);
-
         $result = $builder->get()->getRowArray();
-        $debit  = $result['total_debit'] ?? 0;
+
+        $debit = $result['total_debit'] ?? 0;
         $kredit = $result['total_kredit'] ?? 0;
 
-        $akun = $this->find($akunId);
-        $saldo_awal = $akun['saldo_awal'] ?? 0;
-
-        return ($akun['tipe'] === 'debit')
-            ? $saldo_awal + $debit - $kredit
-            : $saldo_awal - $debit + $kredit;
+        return ($akun['tipe'] === 'debit') ? $debit - $kredit : $kredit - $debit;
     }
+
 
     public function getMutasiAkunRange($akunId, $tanggalAwal, $tanggalAkhir)
     {

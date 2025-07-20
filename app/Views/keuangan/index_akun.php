@@ -23,7 +23,7 @@
                     <th>Nama Akun</th>
                     <th>Jenis Akun</th>
                     <th>Tipe</th>
-                    <th class="text-right">Saldo Awal (Rp)</th>
+                    <th class="text-right">Saldo (Rp)</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
@@ -35,7 +35,7 @@
                             <td><?= esc($a['nama_akun']) ?></td>
                             <td><?= esc($a['jenis_akun']) ?></td>
                             <td><?= esc($a['tipe']) ?></td>
-                            <td class="text-right"><?= number_format($a['saldo_awal'], 2, ',', '.') ?></td>
+                            <td class="text-right"><?= number_format($a['saldo'], 2, ',', '.') ?></td>
                             <td>
                                 <a href="<?= base_url('keuangan/edit_akun/' . $a['id']) ?>" class="btn btn-sm btn-primary">Edit</a>
                                 <form action="<?= base_url('keuangan/delete_akun/' . $a['id']) ?>" method="post" class="d-inline" onsubmit="return confirm('Yakin ingin menghapus akun ini?');">

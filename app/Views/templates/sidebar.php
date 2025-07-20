@@ -244,22 +244,23 @@
             </a>
             <div id="collapseKeuangan" class="collapse" aria-labelledby="headingKeuangan" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Laporan Keuangan:</h6>
+                    <h6 class="collapse-header">Menu</h6>
                     <a class="collapse-item" href="<?= base_url('/keuangan/akun') ?>">
                         <i class="fas fa-fw fa-user-circle mr-1 text-primary"></i> Daftar Akun
                     </a>
                     <a class="collapse-item" href="<?= base_url('/keuangan/index') ?>">
                         <i class="fas fa-fw fa-book mr-1 text-primary"></i> Jurnal Umum
                     </a>
+
+                    <a class="collapse-item" href="<?= base_url('/keuangan/neraca_saldo') ?>">
+                        <i class="fas fa-fw fa-balance-scale mr-1 text-success"></i> Neraca Saldo
+                    </a>
+                    <h6 class="collapse-header">Laporan Keuangan</h6>
                     <a class="collapse-item" href="<?= base_url('keuangan/laporan_utang'); ?>">
                         <i class="fas fa-fw fa-file-invoice mr-1 text-warning"></i> Laporan Utang
                     </a>
                     <a class="collapse-item" href="<?= base_url('keuangan/laporan_piutang'); ?>">
                         <i class="fas fa-fw fa-file-invoice-dollar mr-1 text-success"></i> Laporan Piutang
-                    </a>
-
-                    <a class="collapse-item" href="<?= base_url('/keuangan/neraca_saldo') ?>">
-                        <i class="fas fa-fw fa-balance-scale mr-1 text-success"></i> Neraca Saldo
                     </a>
                     <a class="collapse-item" href="<?= base_url('keuangan/laba_rugi'); ?>">
                         <i class="fas fa-fw fa-chart-line mr-1 text-info"></i> Laporan Laba Rugi

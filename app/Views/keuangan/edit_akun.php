@@ -33,7 +33,7 @@
         </div>
         <div class="form-group">
             <label>Saldo Awal</label>
-            <input type="number" name="saldo_awal" class="form-control" value="<?= esc($akun['saldo_awal']) ?>" required>
+            <input type="number" name="saldo" class="form-control" value="<?= esc($akun['saldo']) ?>" required>
         </div>
         <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
         <a href="<?= base_url('keuangan/akun') ?>" class="btn btn-secondary">Kembali</a>
