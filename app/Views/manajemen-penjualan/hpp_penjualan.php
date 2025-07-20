@@ -5,6 +5,12 @@
 
     <h4 class="mb-4"><?= $tittle; ?></h4>
 
+    <?php if (session()->getFlashdata('success')) : ?>
+        <div class="alert alert-success"><?= session()->getFlashdata('success') ?></div>
+    <?php elseif (session()->getFlashdata('error')) : ?>
+        <div class="alert alert-danger"><?= session()->getFlashdata('error') ?></div>
+    <?php endif; ?>
+
     <form method="get" action="<?= base_url('manajemen-penjualan/hppPenjualan'); ?>" class="row mb-3">
         <div class="col-md-3">
             <label>Dari Tanggal</label>
@@ -20,7 +26,7 @@
     </form>
 
     <?php if (isset($start) && isset($end)) : ?>
-        <div class="card shadow-sm">
+        <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <p><strong>Periode:</strong> <?= date('d M Y', strtotime($start)); ?> s/d <?= date('d M Y', strtotime($end)); ?> (<?= $days ?> hari)</p>
 
@@ -58,6 +64,24 @@
                         <td><strong>Rp <?= number_format($hpp_per_porsi, 0, ',', '.') ?> / porsi</strong></td>
                     </tr>
                 </table>
+
+                <form action="<?= base_url('manajemen-penjualan/simpanHppPenjualan') ?>" method="post">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="start" value="<?= $start ?>">
+                    <input type="hidden" name="end" value="<?= $end ?>">
+                    <input type="hidden" name="days" value="<?= $days ?>">
+                    <input type="hidden" name="total_biaya_hpp" value="<?= $total_biaya_hpp ?>">
+                    <input type="hidden" name="total_produksi" value="<?= $total_produksi ?>">
+                    <input type="hidden" name="total_btkl" value="<?= $total_btkl ?>">
+                    <input type="hidden" name="total_operasional" value="<?= $total_operasional ?>">
+                    <input type="hidden" name="total_semua_biaya" value="<?= $total_semua_biaya ?>">
+                    <input type="hidden" name="hpp_per_hari" value="<?= $hpp_per_hari ?>">
+                    <input type="hidden" name="hpp_per_porsi" value="<?= $hpp_per_porsi ?>">
+
+                    <button type="submit" class="btn btn-success mt-3">
+                        <i class="fas fa-save"></i> Simpan HPP Penjualan
+                    </button>
+                </form>
             </div>
         </div>
     <?php endif; ?>

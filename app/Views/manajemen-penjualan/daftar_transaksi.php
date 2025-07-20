@@ -77,7 +77,7 @@
                 </thead>
                 <tbody>
                     <?php if (!empty($transaksi)): ?>
-                        <?php $no = 1;
+                        <?php $no = 1 + (10 * ($pager->getCurrentPage('transaksi') - 1));
                         foreach ($transaksi as $row): ?>
                             <tr>
                                 <td class="text-center">
@@ -111,6 +111,18 @@
                     <?php endif; ?>
                 </tbody>
             </table>
+            <div class="d-flex justify-content-between align-items-center mt-4">
+                <div>
+                    <small class="text-muted">
+                        Halaman <?= $pager->getCurrentPage('transaksi') ?> dari <?= $pager->getPageCount('transaksi') ?>
+                    </small>
+                </div>
+                <div>
+                    <nav aria-label="Page navigation">
+                        <?= $pager->only(['outlet_id', 'start_date', 'end_date'])->links('transaksi', 'bootstrap_full') ?>
+                    </nav>
+                </div>
+            </div>
         </div>
     </form>
 </div>

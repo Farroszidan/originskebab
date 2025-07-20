@@ -14,10 +14,12 @@ use App\Models\PegawaiShiftModel;
 use App\Models\ShiftKerjaModel;
 use App\Models\BuktiPembelianModel;
 use App\Models\LaporanShiftModel;
+use App\Models\LaporanPenjualanModel;
 use App\Models\PembelianOperasionalModel;
 use App\Models\DetailPembelianOperasionalModel;
 use App\Models\PermintaanModel;
 use App\Models\PermintaanDetailModel;
+use App\Models\HppPenjualanModel;
 use Myth\Auth\Models\UserModel;
 use App\Models\BSJModel;
 use App\Models\BahanModel;
@@ -32,7 +34,7 @@ use function in_groups;
 
 class ManajemenPenjualan extends BaseController
 {
-    protected $db, $builder, $jualModel, $detailJualModel, $permintaanModel, $detailPermintaanModel, $outletModel, $session, $auth;
+    protected $db, $builder, $jualModel, $detailJualModel, $permintaanModel, $detailPermintaanModel, $detailPembelianModel, $pembelianModel, $laporanModel, $shiftModel, $outletModel, $session, $auth;
 
     public function __construct()
     {
@@ -43,6 +45,10 @@ class ManajemenPenjualan extends BaseController
         $this->detailJualModel = new DetailJualModel();
         $this->permintaanModel = new PermintaanModel();
         $this->detailPermintaanModel    = new PermintaanDetailModel();
+        $this->pembelianModel = new PembelianOperasionalModel();
+        $this->detailPembelianModel = new DetailPembelianOperasionalModel();
+        $this->laporanModel = new LaporanPenjualanModel(); // ✅ INI YANG WAJIB ADA
+        $this->shiftModel = new PegawaiShiftModel();
         $this->outletModel = new \App\Models\OutletModel();
         $this->session = session();
         $this->auth = service('authentication');
@@ -684,7 +690,7 @@ class ManajemenPenjualan extends BaseController
                 throw new \Exception('Gagal menyimpan transaksi.');
             }
 
-            return redirect()->to(base_url('manajemen-penjualan/inputtransaksi'))->with('success', 'Transaksi berhasil disimpan dan stok bahan berkurang.');
+            return redirect()->to(base_url('manajemen-penjualan/daftar-transaksi'))->with('success', 'Transaksi berhasil disimpan dan stok bahan berkurang.');
         } catch (\Exception $e) {
             $db->transRollback();
             return redirect()->back()->withInput()->with('error', 'Terjadi kesalahan saat menyimpan transaksi: ' . $e->getMessage());
@@ -693,25 +699,40 @@ class ManajemenPenjualan extends BaseController
 
     public function daftarTransaksi()
     {
-        $jualModel = new JualModel();
-        $outletModel = new OutletModel();
+        $jualModel = new \App\Models\JualModel();
+        $outletModel = new \App\Models\OutletModel();
 
         $selectedOutlet = $this->request->getGet('outlet_id');
-        $startDate = $this->request->getGet('start_date');
-        $endDate = $this->request->getGet('end_date');
+        $startDate      = $this->request->getGet('start_date');
+        $endDate        = $this->request->getGet('end_date');
 
-        $outlets = $outletModel->findAll();
-        $transaksi = $jualModel->getDaftarTransaksi($selectedOutlet, $startDate, $endDate);
+        // Builder query
+        $query = $jualModel->select('jual.*, outlet.nama_outlet')
+            ->join('outlet', 'outlet.id = jual.outlet_id', 'left');
+
+        if ($selectedOutlet) {
+            $query->where('jual.outlet_id', $selectedOutlet);
+        }
+
+        if ($startDate && $endDate) {
+            $query->where('tgl_jual >=', $startDate)
+                ->where('tgl_jual <=', $endDate);
+        }
+
+        $transaksi = $query->orderBy('tgl_jual', 'DESC')->paginate(10, 'transaksi');
+        $pager = $jualModel->pager;
 
         return view('manajemen-penjualan/daftar_transaksi', [
-            'tittle' => 'Daftar Transaksi',
-            'transaksi' => $transaksi,
-            'outlets' => $outlets,
+            'tittle'         => 'Daftar Transaksi',
+            'transaksi'      => $transaksi,
+            'pager'          => $pager,
+            'outlets'        => $outletModel->findAll(),
             'selectedOutlet' => $selectedOutlet,
-            'startDate' => $startDate,
-            'endDate' => $endDate
+            'startDate'      => $startDate,
+            'endDate'        => $endDate
         ]);
     }
+
 
     public function detail($id)
     {
@@ -1249,162 +1270,242 @@ class ManajemenPenjualan extends BaseController
     // ===================================== LAIN - LAIN START ===================================================== //
 
     // =========================================== LAPORAN PENJUALAN START ============================================//
-    public function laporanPerTanggal()
+    public function laporanPenjualan()
     {
-        if (!in_groups(['admin', 'penjualan', 'keuangan'])) {
-            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        $tanggalReview = $this->request->getGet('tanggal_review') ?: '';
+        $tanggalDaftar = $this->request->getGet('tanggal_daftar') ?: '';
+        $requestedOutletId = $this->request->getGet('outlet_id');
+
+        $outletModel = new \App\Models\OutletModel();
+        $outlets = $outletModel->findAll();
+
+        $userId = user_id(); // Dari Myth:Auth
+        $db = \Config\Database::connect();
+
+        $builder = $db->table('users');
+        $builder->select('users.id, users.username, users.outlet_id');
+        $builder->where('users.id', $userId);
+
+        $userInfo = $builder->get()->getRow();
+
+        // Cek role
+        $isAdmin = in_groups('admin');
+        $isKeuangan = in_groups('keuangan');
+
+        // Jika bukan admin dan keuangan, set outlet berdasarkan user login
+        if (!$isAdmin && !$isKeuangan) {
+            $outletId = $userInfo->outlet_id ?? null;
+        } else {
+            $outletId = $requestedOutletId;
         }
 
-        $user = user();
-        $outletModel = new OutletModel();
-        $laporanShiftModel = new LaporanShiftModel();
-
-        // Ambil parameter GET, default hari ini
-        $tanggalAwal = $this->request->getGet('tanggal_awal') ?? date('Y-m-d');
-        $tanggalAkhir = $this->request->getGet('tanggal_akhir') ?? date('Y-m-d');
-        $outletId = $this->request->getGet('outlet_id');
-
-        $isFiltered = true;
-
-        if (in_groups('penjualan')) {
-            $outletId = $user->outlet_id;
-        }
-
-        // Ambil data laporan shift
-        $query = $laporanShiftModel
-            ->select('laporan_shift.*, outlet.nama_outlet, shift_kerja.nama_shift, shift_kerja.jam_mulai, shift_kerja.jam_selesai')
-            ->join('outlet', 'outlet.id = laporan_shift.outlet_id', 'left')
-            ->join('shift_kerja', 'shift_kerja.id = laporan_shift.shift_id', 'left')
-            ->where('laporan_shift.tanggal >=', $tanggalAwal)
-            ->where('laporan_shift.tanggal <=', $tanggalAkhir);
-
-        if ($outletId) {
-            $query->where('laporan_shift.outlet_id', $outletId);
-        }
-
-        $laporan = $query->orderBy('laporan_shift.tanggal', 'ASC')->findAll();
-
-        // Hitung total
-        $grandTotalPenjualan = 0;
-        $grandTotalPengeluaran = 0;
-        foreach ($laporan as $row) {
-            $grandTotalPenjualan += $row['total_penjualan'];
-            $grandTotalPengeluaran += $row['total_pengeluaran'];
-        }
-
-        // Rangkuman per metode pembayaran
-        $jenisPembayaran = [
-            'cash' => 0,
-            'qris' => 0,
-            'grabfood' => 0,
-            'gofood' => 0,
-            'shopeefood' => 0,
-        ];
-
-        $potonganPersen = [
+        $penjualan = [];
+        $pengeluaran = [];
+        $detailPengeluaran = [];
+        $totalPenjualan = 0;
+        $totalPengeluaran = 0;
+        $detailMenuTerjual = [];
+        $platforms = [
             'qris' => 0.007,
             'grabfood' => 0.18,
             'gofood' => 0.20,
             'shopeefood' => 0.20,
         ];
+        $potonganData = [];
 
-        foreach ($laporan as $row) {
-            $jenis = strtolower($row['jenis_cashless'] ?? 'cash');
-            $jumlah = floatval($row['total_penjualan']);
+        if ($tanggalReview && $outletId) {
+            $penjualan = $this->jualModel
+                ->where('tgl_jual', $tanggalReview)
+                ->where('outlet_id', $outletId)
+                ->findAll();
 
-            if (!array_key_exists($jenis, $jenisPembayaran)) {
-                $jenis = 'cash';
+            foreach ($penjualan as $jual) {
+                $grandTotal = $jual['grand_total'];
+                $metode = strtolower($jual['metode_pembayaran']);
+                $jenis = strtolower($jual['jenis_cashless']);
+
+                $potongan = 0;
+                if ($metode === 'cashless' && isset($platforms[$jenis])) {
+                    $potongan = $grandTotal * $platforms[$jenis];
+                    if (!isset($potonganData[$jenis])) {
+                        $potonganData[$jenis] = ['jumlah' => 1, 'total' => $potongan];
+                    } else {
+                        $potonganData[$jenis]['jumlah'] += 1;
+                        $potonganData[$jenis]['total'] += $potongan;
+                    }
+                }
+
+                $totalPenjualan += ($grandTotal - $potongan);
             }
 
-            $jenisPembayaran[$jenis] += $jumlah;
+            if (!empty($penjualan)) {
+                $idJuals = array_column($penjualan, 'id');
+
+                $builder = $db->table('detail_jual');
+                $builder->select('nama_menu, SUM(qty) as total_qty, SUM(total_harga) as total_harga');
+                $builder->whereIn('id_jual', $idJuals);
+                $builder->groupBy('nama_menu');
+                $detailMenuTerjual = $builder->get()->getResultArray();
+            }
+
+            $pengeluaran = $this->pembelianModel
+                ->where('tanggal', $tanggalReview)
+                ->where('outlet_id', $outletId)
+                ->findAll();
+
+            foreach ($pengeluaran as $item) {
+                $totalPengeluaran += $item['total'];
+            }
+
+            $detailPengeluaran = $this->detailPembelianModel
+                ->select('detail_pembelian_operasional.nama_barang, detail_pembelian_operasional.jumlah, detail_pembelian_operasional.total')
+                ->join('pembelian_operasional', 'pembelian_operasional.id = detail_pembelian_operasional.pembelian_id')
+                ->where('pembelian_operasional.tanggal', $tanggalReview)
+                ->where('pembelian_operasional.outlet_id', $outletId)
+                ->findAll();
         }
 
-        // Siapkan data untuk tabel rincian metode
-        $rincianMetode = [];
-        foreach ($jenisPembayaran as $jenis => $bruto) {
-            $persen = $potonganPersen[$jenis] ?? 0;
-            $potongan = $bruto * $persen;
-            $netto = $bruto - $potongan;
+        $tanggalDaftar = $this->request->getGet('tanggalDaftar');
 
-            $rincianMetode[] = [
-                'jenis' => ucfirst($jenis),
-                'bruto' => $bruto,
-                'persen' => $persen * 100,
-                'potongan' => $potongan,
-                'netto' => $netto,
-            ];
+        // Ambil semua laporan jika tidak ada filter tanggal (langsung tampilkan)
+        $laporanBuilder = $db->table('laporan_penjualan');
+        $laporanBuilder->select('laporan_penjualan.*, outlet.nama_outlet');
+        $laporanBuilder->join('outlet', 'outlet.id = laporan_penjualan.outlet_id');
+        $laporanBuilder->orderBy('laporan_penjualan.tanggal', 'DESC');
+        $laporanBuilder->orderBy('laporan_penjualan.outlet_id', 'ASC');
+
+        if ($tanggalDaftar) {
+            $laporanBuilder->where('laporan_penjualan.tanggal', $tanggalDaftar);
         }
 
-        // Kirim ke view
-        $data = [
-            'tittle' => 'SIOK | Laporan Penjualan',
-            'laporan' => $laporan,
-            'tanggal_awal' => $tanggalAwal,
-            'tanggal_akhir' => $tanggalAkhir,
-            'selectedOutlet' => $outletId,
-            'grandTotalPenjualan' => $grandTotalPenjualan,
-            'grandTotalPengeluaran' => $grandTotalPengeluaran,
-            'selisih' => $grandTotalPenjualan - $grandTotalPengeluaran,
-            'isSingleDate' => $tanggalAwal === $tanggalAkhir,
-            'isFiltered' => $isFiltered,
-            'rincianMetode' => $rincianMetode, // ⬅ dikirim ke view
-        ];
+        $laporanTersimpan = $laporanBuilder->get()->getResultArray();
 
-        // Tambahkan outlet untuk dropdown jika role admin/keuangan
-        if (in_groups(['admin', 'keuangan'])) {
-            $data['outlets'] = $outletModel->findAll();
-        } else {
-            $outlet = $outletModel->find($outletId);
-            $data['outlets'] = [];
-            $data['outlet_id'] = $outletId;
-            $data['nama_outlet'] = $outlet['nama_outlet'] ?? 'Outlet Tidak Diketahui';
-        }
-
-        return view('manajemen-penjualan/laporan_penjualan', $data);
+        return view('manajemen-penjualan/laporan_penjualan', [
+            'tittle' => 'Laporan Penjualan',
+            'tanggalReview' => $tanggalReview,
+            'tanggalDaftar' => $tanggalDaftar,
+            'outlet_id' => $outletId,
+            'penjualan' => $penjualan,
+            'totalPenjualan' => $totalPenjualan,
+            'totalPengeluaran' => $totalPengeluaran,
+            'detailPengeluaran' => $detailPengeluaran,
+            'detailMenuTerjual' => $detailMenuTerjual,
+            'laporanTersimpan' => $laporanTersimpan,
+            'outlets' => $outlets,
+            'platforms' => $platforms,
+            'potonganData' => $potonganData,
+            'isAdmin' => $isAdmin,
+            'isKeuangan' => $isKeuangan,
+        ]);
     }
+
+
+    public function simpanLaporanPenjualan()
+    {
+        $tanggal = $this->request->getPost('tanggal');
+        $outletId = $this->request->getPost('outlet_id');
+        $totalPenjualan = $this->request->getPost('total_penjualan');
+        $totalPengeluaran = $this->request->getPost('total_pengeluaran');
+        $keterangan = $this->request->getPost('keterangan_pengeluaran');
+        $konfirmasi = $this->request->getPost('konfirmasi_simpan'); // tombol konfirmasi jika jam operasional belum selesai
+
+        // Cek apakah laporan sudah ada
+        $sudahAda = $this->laporanModel
+            ->where('tanggal', $tanggal)
+            ->where('outlet_id', $outletId)
+            ->countAllResults();
+
+        if ($sudahAda > 0) {
+            return redirect()->back()->with('error', 'Laporan tanggal ini sudah disimpan.');
+        }
+
+        // Ambil jam selesai terakhir shift
+        $shiftModel = new \App\Models\ShiftKerjaModel();
+        $shiftTerakhir = $shiftModel->selectMax('jam_selesai')->first();
+        $jamSelesaiTerakhir = $shiftTerakhir['jam_selesai']; // format: H:i:s
+        $jamSekarang = date('H:i:s');
+
+        // Cek apakah jam sekarang masih di bawah jam selesai shift, dan belum ada konfirmasi
+        if ($jamSekarang < $jamSelesaiTerakhir && $konfirmasi != '1') {
+            return redirect()->back()->withInput()->with('warning', 'Jam operasional belum berakhir. Yakin ingin simpan laporan penjualan hari ini? Klik lagi untuk konfirmasi.');
+        }
+
+        // Simpan ke database
+        $this->laporanModel->save([
+            'tanggal' => $tanggal,
+            'outlet_id' => $outletId,
+            'total_penjualan' => $totalPenjualan,
+            'total_pengeluaran' => $totalPengeluaran,
+            'keterangan_pengeluaran' => $keterangan,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+
+        return redirect()->back()->with('success', 'Laporan berhasil disimpan.');
+    }
+
 
     public function cetakLaporanPenjualan()
     {
-        $tanggalAwal = $this->request->getGet('tanggal_awal') ?? date('Y-m-01');
-        $tanggalAkhir = $this->request->getGet('tanggal_akhir') ?? date('Y-m-d');
+        $tanggalAwal = $this->request->getGet('tanggal_awal');
+        $tanggalAkhir = $this->request->getGet('tanggal_akhir');
         $outletId = $this->request->getGet('outlet_id');
 
-        $laporanShiftModel = new LaporanShiftModel();
-        $outletModel = new OutletModel();
-
-        // Ambil data laporan dengan relasi ke outlet & shift
-        $laporanQuery = $laporanShiftModel
-            ->select('laporan_shift.*, outlet.nama_outlet, shift_kerja.nama_shift, shift_kerja.jam_mulai, shift_kerja.jam_selesai')
-            ->join('outlet', 'outlet.id = laporan_shift.outlet_id', 'left')
-            ->join('shift_kerja', 'shift_kerja.id = laporan_shift.shift_id', 'left')
-            ->where('laporan_shift.tanggal >=', $tanggalAwal)
-            ->where('laporan_shift.tanggal <=', $tanggalAkhir);
+        // Ambil laporan yang sesuai periode
+        $query = $this->laporanModel
+            ->where('tanggal >=', $tanggalAwal)
+            ->where('tanggal <=', $tanggalAkhir);
 
         if ($outletId) {
-            $laporanQuery->where('laporan_shift.outlet_id', $outletId);
+            $query->where('outlet_id', $outletId);
         }
 
-        $laporan = $laporanQuery->findAll();
+        $db = \Config\Database::connect();
+        $builder = $db->table('laporan_penjualan');
+        $builder->select('laporan_penjualan.*, outlet.nama_outlet');
+        $builder->join('outlet', 'outlet.id = laporan_penjualan.outlet_id');
+        $builder->where('tanggal >=', $tanggalAwal);
+        $builder->where('tanggal <=', $tanggalAkhir);
 
-        // Hitung total ringkasan
+        if ($outletId) {
+            $builder->where('laporan_penjualan.outlet_id', $outletId);
+        }
+
+        $builder->orderBy('tanggal', 'ASC');
+        $builder->orderBy('outlet_id', 'ASC');
+
+        $laporan = $builder->get()->getResultArray();
+
+        // Hitung total
         $grandTotalPenjualan = array_sum(array_column($laporan, 'total_penjualan'));
         $grandTotalPengeluaran = array_sum(array_column($laporan, 'total_pengeluaran'));
-        $selisih = $grandTotalPenjualan - $grandTotalPengeluaran;
+        $grandTotalLaba = $grandTotalPenjualan - $grandTotalPengeluaran;
 
-        // Ambil nama outlet
-        $outlets = $outletModel->findAll();
-        $outletNama = $this->getOutletName($outlets, $outletId);
-
-        // Kirim ke view
         return view('manajemen-penjualan/cetak_laporan_penjualan', [
             'laporan' => $laporan,
-            'tanggal_awal' => $tanggalAwal,
-            'tanggal_akhir' => $tanggalAkhir,
+            'tanggalAwal' => $tanggalAwal,
+            'tanggalAkhir' => $tanggalAkhir,
             'grandTotalPenjualan' => $grandTotalPenjualan,
             'grandTotalPengeluaran' => $grandTotalPengeluaran,
-            'selisih' => $selisih,
-            'outletNama' => $outletNama,
+            'grandTotalLaba' => $grandTotalLaba,
+            'outletId' => $outletId,
         ]);
+    }
+
+    public function hapusLaporan()
+    {
+        $tanggal = $this->request->getPost('tanggal');
+        $outletId = $this->request->getPost('outlet_id');
+
+        $hapus = $this->laporanModel
+            ->where('tanggal', $tanggal)
+            ->where('outlet_id', $outletId)
+            ->delete();
+
+        if ($hapus) {
+            return redirect()->back()->with('success', 'Laporan berhasil dihapus.');
+        } else {
+            return redirect()->back()->with('error', 'Gagal menghapus laporan.');
+        }
     }
     // =========================================== LAPORAN PENJUALAN END ============================================//
 
@@ -1712,7 +1813,7 @@ class ManajemenPenjualan extends BaseController
         }
 
         return view('manajemen-penjualan/btkl', [
-            'tittle' => 'Daftar BTKL yang Tersimpan',
+            'tittle' => 'Daftar Gaji Karyawan',
             'rekap' => $rekap,
             'gaji_per_shift' => 40000,
             'outlets' => $outlets,
@@ -1854,6 +1955,11 @@ class ManajemenPenjualan extends BaseController
         $shiftId  = $this->request->getPost('shift_id');
         $tanggal  = $this->request->getPost('tanggal');
 
+        // Pastikan $userIds adalah array
+        if (!is_array($userIds)) {
+            $userIds = [$userIds];
+        }
+
         // Validasi shift
         $shiftModel = new \App\Models\ShiftKerjaModel();
         $shift = $shiftModel->find($shiftId);
@@ -1872,8 +1978,10 @@ class ManajemenPenjualan extends BaseController
                 'jam_selesai' => $shift['jam_selesai'],
             ]);
         }
+
         return redirect()->to('manajemen-penjualan/input-shift')->with('success', 'Shift berhasil disimpan');
     }
+
 
     public function getUsersByOutlet($outletId)
     {
@@ -2029,13 +2137,15 @@ class ManajemenPenjualan extends BaseController
     public function permintaan()
     {
         $startDate = $this->request->getGet('start_date');
-        $endDate = $this->request->getGet('end_date');
+        $endDate   = $this->request->getGet('end_date');
+        $perPage   = 10; // Jumlah item per halaman
 
-        $bahanModel = new \App\Models\BahanModel();
-        $bsjModel   = new \App\Models\BSJModel();
-        $outletModel = new \App\Models\OutletModel();
+        $bahanModel   = new \App\Models\BahanModel();
+        $bsjModel     = new \App\Models\BSJModel();
+        $outletModel  = new \App\Models\OutletModel();
+        $userModel    = model('UserModel');
 
-        // Query utama permintaan
+        // Siapkan query builder
         $builder = $this->permintaanModel->orderBy('tanggal', 'DESC');
 
         if ($startDate && $endDate) {
@@ -2043,14 +2153,16 @@ class ManajemenPenjualan extends BaseController
                 ->where('tanggal <=', $endDate);
         }
 
-        $list = $builder->findAll();
+        // Gunakan pagination
+        $list = $builder->paginate($perPage, 'permintaan');
+        $pager = $this->permintaanModel->pager;
 
         $permintaan = [];
         foreach ($list as $p) {
-            // Ambil outlet (jika menggunakan outlet_id di tabel permintaan)
+            // Ambil nama outlet
             $p['nama_outlet'] = '-';
             if (isset($p['created_by'])) {
-                $user = model('UserModel')->find($p['created_by']);
+                $user = $userModel->find($p['created_by']);
                 if ($user && isset($user->outlet_id)) {
                     $outlet = $outletModel->find($user->outlet_id);
                     $p['nama_outlet'] = $outlet['nama_outlet'] ?? '-';
@@ -2068,8 +2180,7 @@ class ManajemenPenjualan extends BaseController
                 } else {
                     $barang = $bahanModel->where('kode', $b['kode_bahan'])->first();
                 }
-
-                $b['nama'] = $barang['nama'] ?? $b['nama']; // fallback ke nama yg disimpan
+                $b['nama'] = $barang['nama'] ?? $b['nama']; // fallback
             }
 
             $p['barang'] = $barangList;
@@ -2081,10 +2192,12 @@ class ManajemenPenjualan extends BaseController
             'permintaan' => $permintaan,
             'filter' => [
                 'start_date' => $startDate,
-                'end_date' => $endDate,
-            ]
+                'end_date'   => $endDate,
+            ],
+            'pager' => $pager
         ]);
     }
+
 
     // 2. Form input permintaan
     public function formPermintaan()
@@ -2257,6 +2370,41 @@ class ManajemenPenjualan extends BaseController
         return view('manajemen-penjualan/hpp_penjualan', [
             'tittle' => 'HPP Penjualan'
         ]);
+    }
+
+    public function simpanHppPenjualan()
+    {
+        if (!in_groups(['admin', 'keuangan'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses menyimpan data HPP.');
+        }
+
+        $model = new HppPenjualanModel();
+
+        $data = [
+            'start_date'         => $this->request->getPost('start'),
+            'end_date'           => $this->request->getPost('end'),
+            'jumlah_hari'        => $this->request->getPost('days'),
+            'total_biaya_hpp'    => $this->request->getPost('total_biaya_hpp'),
+            'total_produksi'     => $this->request->getPost('total_produksi'),
+            'total_btkl'         => $this->request->getPost('total_btkl'),
+            'total_operasional'  => $this->request->getPost('total_operasional'),
+            'total_semua_biaya'  => $this->request->getPost('total_semua_biaya'),
+            'hpp_per_hari'       => $this->request->getPost('hpp_per_hari'),
+            'hpp_per_porsi'      => $this->request->getPost('hpp_per_porsi'),
+        ];
+
+        // Cek apakah sudah ada data untuk periode tersebut
+        $existing = $model->where('start_date', $data['start_date'])
+            ->where('end_date', $data['end_date'])
+            ->first();
+
+        if ($existing) {
+            return redirect()->back()->with('error', 'Data HPP untuk periode ini sudah ada.');
+        }
+
+        $model->save($data);
+
+        return redirect()->back()->with('success', 'Data HPP Penjualan berhasil disimpan.');
     }
     // ===================================== HPP PENJUALAN START ===================================================== //
 }

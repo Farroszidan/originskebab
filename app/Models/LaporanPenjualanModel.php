@@ -11,11 +11,10 @@ class LaporanPenjualanModel extends Model
     protected $allowedFields = [
         'tanggal',
         'outlet_id',
+        'shift_id',
         'total_penjualan',
         'total_pengeluaran',
-        'rincian_penjualan',
-        'rincian_pengeluaran',
-        'created_at',
-        'updated_at'
+        'keterangan_pengeluaran',
+        'created_at'
     ];
 }
