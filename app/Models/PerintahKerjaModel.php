@@ -15,6 +15,9 @@ class PerintahKerjaModel extends Model
         'status',
         'keterangan',
         'created_at',
+        'jumlah_kulit',
+        'jumlah_ayam',
+        'jumlah_sapi',
     ];
     protected $useTimestamps = false;
 }

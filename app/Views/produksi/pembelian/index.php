@@ -25,6 +25,7 @@
                             <th>Pemasok</th>
                             <th>Item Dibeli</th>
                             <th>Total</th>
+                            <th>Status</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -54,10 +55,32 @@
                                 </td>
                                 <td class="text-right">Rp <?= number_format($row['total'], 0, ',', '.') ?></td>
                                 <td class="text-center">
+                                    <?php
+                                    $status = isset($row['status_barang']) ? $row['status_barang'] : '-';
+                                    if ($status === 'sudah_diterima') {
+                                        echo '<span class="badge badge-success">Sudah Diterima</span>';
+                                    } elseif ($status === 'belum_diterima') {
+                                        echo '<span class="badge badge-warning">Belum Diterima</span>';
+                                    } else {
+                                        echo esc($status);
+                                    }
+                                    ?>
+                                </td>
+                                <td class="text-center">
                                     <a href="<?= base_url('produksi/pembelian/detail/' . $row['id']) ?>" class="btn btn-info btn-sm">
                                         <i class="fas fa-eye"></i> Detail
                                     </a>
+                                    <?php if (isset($row['status_barang']) && $row['status_barang'] === 'belum_diterima'): ?>
+                                        <a href="<?= base_url('produksi/pembelian/edit/' . $row['id']); ?>" class="btn btn-warning btn-sm">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </a>
+                                    <?php endif; ?>
                                     <a href="<?= base_url('produksi/pembelian/delete/' . $row['id']); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus pembelian ini?');">Hapus</a>
+                                    <?php if (isset($row['status_barang']) && $row['status_barang'] === 'belum_diterima'): ?>
+                                        <a href="<?= base_url('produksi/pembelian/update-status/' . $row['id'] . '/sudah_diterima') ?>" class="btn btn-success btn-sm" onclick="return confirm('Ubah status menjadi Sudah Diterima dan tambahkan ke persediaan?');">
+                                            <i class="fas fa-check"></i> Terima Barang
+                                        </a>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach ?>

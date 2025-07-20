@@ -14,10 +14,18 @@
                         <input type="date" name="tanggal" class="form-control" required>
                     </div>
                     <div class="col-sm-2">
+                        <label for="jenis_pembelian" class="col-form-label">Jenis Pembelian</label>
+                        <select name="jenis_pembelian" id="jenis_pembelian" class="form-control" required>
+                            <option value="">-- Pilih Jenis --</option>
+                            <option value="tunai">Tunai</option>
+                            <option value="kredit">Kredit / PO</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-2" id="nota-group">
                         <label for="no_nota" class="col-form-label">No. Nota</label>
                         <input type="text" name="no_nota" class="form-control" required>
                     </div>
-                    <div class="col-sm-5">
+                    <div class="col-sm-3" id="pemasok-group">
                         <label for="pemasok_id" class="col-form-label">Pemasok</label>
                         <select name="pemasok_id" id="pemasok_id" class="form-control" required>
                             <option value="">-- Pilih Pemasok --</option>
@@ -28,7 +36,7 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-sm-2">
+                    <div class="col-sm-3" id="bukti-group">
                         <label for="bukti" class="col-form-label">Upload Bukti Pembelian</label>
                         <input type="file" name="bukti" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
                     </div>
@@ -108,7 +116,43 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Jenis pembelian: hide/show pemasok & bukti, atur required
+        const jenisPembelian = document.getElementById('jenis_pembelian');
+        const pemasokGroup = document.getElementById('pemasok-group');
+        const buktiGroup = document.getElementById('bukti-group');
+        const notaGroup = document.getElementById('nota-group');
         const pemasokSelect = document.getElementById('pemasok_id');
+        const buktiInput = document.querySelector('input[name="bukti"]');
+        const notaInput = document.querySelector('input[name="no_nota"]');
+
+        function setFieldVisibility() {
+            if (jenisPembelian.value === 'tunai') {
+                pemasokGroup.style.display = '';
+                buktiGroup.style.display = '';
+                notaGroup.style.display = '';
+                // Required
+                pemasokSelect.removeAttribute('required');
+                buktiInput.setAttribute('required', 'required');
+                notaInput.setAttribute('required', 'required');
+            } else if (jenisPembelian.value === 'kredit') {
+                pemasokGroup.style.display = '';
+                buktiGroup.style.display = 'none';
+                notaGroup.style.display = 'none';
+                pemasokSelect.setAttribute('required', 'required');
+                buktiInput.removeAttribute('required');
+                notaInput.removeAttribute('required');
+            } else {
+                pemasokGroup.style.display = '';
+                buktiGroup.style.display = '';
+                notaGroup.style.display = '';
+                pemasokSelect.setAttribute('required', 'required');
+                buktiInput.setAttribute('required', 'required');
+                notaInput.setAttribute('required', 'required');
+            }
+        }
+        jenisPembelian.addEventListener('change', setFieldVisibility);
+        setFieldVisibility(); // Inisialisasi tampilan awal
+
         const bahanSelect = document.getElementById('bahan-select');
         const btnTambah = document.getElementById('btn-tambah');
         const tableBody = document.querySelector('#daftar-pembelian tbody');

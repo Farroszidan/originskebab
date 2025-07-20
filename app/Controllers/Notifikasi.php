@@ -88,9 +88,25 @@ class Notifikasi extends BaseController
             $this->notifikasiModel->update($id, ['dibaca' => 1]);
         }
 
+        $bsjList = [];
+        $perintahKerja = null;
+        if ($notif['tipe'] === 'perintah_kerja' && !empty($notif['relasi_id'])) {
+            $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+            $perintahKerja = $perintahKerjaModel->find($notif['relasi_id']);
+            if ($perintahKerja && !empty($perintahKerja['bsj'])) {
+                if (is_string($perintahKerja['bsj'])) {
+                    $bsjList = json_decode($perintahKerja['bsj'], true);
+                } elseif (is_array($perintahKerja['bsj'])) {
+                    $bsjList = $perintahKerja['bsj'];
+                }
+            }
+        }
+
         return view('notifikasi/detail', [
             'tittle' => 'SIOK | Detail Notifikasi',
-            'notifikasi' => $notif
+            'notifikasi' => $notif,
+            'bsj' => $bsjList,
+            'perintahKerja' => $perintahKerja,
         ]);
     }
 }

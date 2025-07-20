@@ -10,8 +10,14 @@ class DetailPerintahKerjaModel extends Model
     protected $primaryKey = 'id';
     protected $allowedFields = [
         'perintah_kerja_id',
+        'kode_bahan',
+        'nama_bahan',
         'jenis_bsj',
         'jumlah',
+        'kategori',
+        'satuan',
+        'harga_satuan',
+        'subtotal',
     ];
     protected $useTimestamps = false;
 }

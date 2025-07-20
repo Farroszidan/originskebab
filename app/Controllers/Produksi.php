@@ -14,15 +14,16 @@ use App\Models\DetailProduksiModel;
 use App\Models\KomposisiBahanBSJModel;
 use App\Models\NotifikasiModel;
 use App\Models\OutletModel;
+use App\Models\AkunModel;
 
 
 class Produksi extends BaseController
 {
     public function index()
     {
-        // Pastikan hanya admin yang bisa akses
-        if (!in_groups('produksi')) {
-            return redirect()->to('login');
+        // Pastikan hanya admin dan produksi yang bisa akses
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
         }
         $data['tittle'] = 'SIOK | Dashboard';
         return view('produksi/index_produksi', $data);
@@ -31,6 +32,9 @@ class Produksi extends BaseController
     //PEMBELIAN
     public function pembelian()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $pembelianModel = new PembelianModel();
         $detailModel    = new DetailPembelianModel();
         $bahanModel     = new BahanModel();
@@ -69,14 +73,20 @@ class Produksi extends BaseController
 
 
     public function simpanPembelian()
+
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $pembelianModel       = new PembelianModel();
         $bahanModel           = new BahanModel();
         $detailPembelianModel = new DetailPembelianModel();
+        $akunModel            = new AkunModel();
 
         $tanggal    = $this->request->getPost('tanggal');
         $noNota     = $this->request->getPost('no_nota');
         $pemasokId  = $this->request->getPost('pemasok_id');
+        $jenisPembelian = $this->request->getPost('jenis_pembelian');
         $total      = 0;
 
         // simpan file upload bukti pembelian
@@ -88,13 +98,18 @@ class Produksi extends BaseController
             $bukti->move('uploads/bukti_pembelian/', $namaFile);
         }
 
+        // Status barang: jika tunai langsung diterima, jika kredit/PO belum diterima
+        $statusBarang = ($jenisPembelian === 'tunai') ? 'sudah_diterima' : 'belum_diterima';
+
         // Simpan data pembelian (header)
         $pembelianId = $pembelianModel->insert([
             'no_nota'    => $noNota,
             'tanggal'    => $tanggal,
             'pemasok_id' => $pemasokId,
             'total'      => 0, // nanti diupdate setelah hitung semua subtotal
-            'bukti_transaksi' => $namaFile
+            'bukti_transaksi' => $namaFile,
+            'jenis_pembelian' => $jenisPembelian,
+            'status_barang'   => $statusBarang
         ]);
 
         // Loop simpan detail per item
@@ -122,8 +137,8 @@ class Produksi extends BaseController
                 'subtotal'     => $subtotal,
             ]);
 
-            // Update stok bahan
-            if ($bahan) {
+            // Update stok bahan hanya jika tunai
+            if ($bahan && $jenisPembelian === 'tunai') {
                 $bahanModel->update($bahanId, [
                     'stok' => $bahan['stok'] + $jumlah_db
                 ]);
@@ -137,11 +152,55 @@ class Produksi extends BaseController
             'total' => $total
         ]);
 
+        // Update saldo akun sesuai transaksi
+        if ($jenisPembelian === 'tunai') {
+            // Kas (101) berkurang (kredit)
+            $akunModel->updateSaldo(101, $total, 'kredit');
+            // Persediaan bahan penolong (108) bertambah (debit)
+            $akunModel->updateSaldo(108, $total, 'debit');
+        } elseif ($jenisPembelian === 'kredit') {
+            // Persediaan bahan baku (107) bertambah (debit)
+            $akunModel->updateSaldo(107, $total, 'debit');
+            // Utang usaha (201) bertambah (kredit)
+            $akunModel->updateSaldo(201, $total, 'kredit');
+
+            // Catat jurnal umum untuk pembelian kredit
+            $db = \Config\Database::connect();
+            $akunPersediaan = $akunModel->where('kode_akun', 107)->first(); // Persediaan bahan baku
+            $akunUtang = $akunModel->where('kode_akun', 201)->first(); // Utang usaha
+            if ($akunPersediaan && $akunUtang) {
+                $jurnal = $db->table('jurnal_umum');
+                $grandTotal = $total;
+                $keterangan = 'Pembelian Kredit';
+
+                // Debit ke Persediaan bahan baku dan Kredit ke Utang usaha, satu baris saja
+                $jurnal->insert([
+                    'tanggal' => $tanggal,
+                    'akun_id' => $akunPersediaan['id'],
+                    'debit' => $grandTotal,
+                    'kredit' => 0,
+                    'keterangan' => $keterangan,
+                    'supplier_id' => $pemasokId,
+                ]);
+                $jurnal->insert([
+                    'tanggal' => $tanggal,
+                    'akun_id' => $akunUtang['id'],
+                    'debit' => 0,
+                    'kredit' => $grandTotal,
+                    'keterangan' => $keterangan,
+                    'supplier_id' => $pemasokId,
+                ]);
+            }
+        }
+
         return redirect()->to('produksi/pembelian')->with('success', 'Pembelian berhasil disimpan.');
     }
 
     public function detailPembelian($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $pembelianModel = new PembelianModel();
         $detailModel    = new DetailPembelianModel();
         $pemasokModel   = new PemasokModel();
@@ -160,6 +219,9 @@ class Produksi extends BaseController
 
     public function createPembelian()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
 
         $pembelianmodel = new PembelianModel();
         $pemasokModel   = new PemasokModel();
@@ -177,10 +239,125 @@ class Produksi extends BaseController
 
     public function hapusPembelian($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $pembelianModel = new PembelianModel();
         $pembelianModel->delete($id);
 
         return redirect()->to(base_url('produksi/pembelian'))->with('success', 'Data berhasil dihapus.');
+    }
+
+    // Form edit pembelian (edit nota dan jumlah bahan)
+    public function editPembelian($id)
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
+        $pembelianModel = new PembelianModel();
+        $detailModel = new DetailPembelianModel();
+        $bahanModel = new BahanModel();
+
+        $pembelian = $pembelianModel->find($id);
+        if (!$pembelian) {
+            return redirect()->to('produksi/pembelian')->with('error', 'Data pembelian tidak ditemukan.');
+        }
+        $detail = $detailModel->where('pembelian_id', $id)->findAll();
+        // Ambil nama dan satuan bahan
+        foreach ($detail as &$item) {
+            $bahan = $bahanModel->find($item['bahan_id']);
+            $item['nama'] = $bahan['nama'] ?? '-';
+            $item['satuan'] = $bahan['satuan'] ?? '-';
+        }
+        return view('produksi/pembelian/edit', [
+            'tittle' => 'Edit Pembelian',
+            'pembelian' => $pembelian,
+            'detail' => $detail
+        ]);
+    }
+
+    // Proses update pembelian (nota dan jumlah bahan)
+    public function updatePembelian($id)
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
+        $pembelianModel = new PembelianModel();
+        $detailModel = new DetailPembelianModel();
+        $bahanModel = new BahanModel();
+
+        $pembelian = $pembelianModel->find($id);
+        if (!$pembelian) {
+            return redirect()->to('produksi/pembelian')->with('error', 'Data pembelian tidak ditemukan.');
+        }
+
+        // Update nota
+        $no_nota = $this->request->getPost('no_nota');
+        $pembelianModel->update($id, ['no_nota' => $no_nota]);
+
+        // Update jumlah bahan
+        $jumlahArr = $this->request->getPost('jumlah'); // [detail_id => jumlah]
+        $total = 0;
+        foreach ($jumlahArr as $detailId => $jumlah) {
+            $detail = $detailModel->find($detailId);
+            if ($detail) {
+                $bahan = $bahanModel->find($detail['bahan_id']);
+                $harga = $detail['harga_satuan'];
+                $satuan = strtolower($bahan['satuan']);
+                // Konversi jumlah sesuai satuan
+                if ($satuan === 'kg') {
+                    $jumlah_db = $jumlah * 1000;
+                } elseif ($satuan === 'liter') {
+                    $jumlah_db = $jumlah * 1000;
+                } else {
+                    $jumlah_db = $jumlah;
+                }
+                $subtotal = (float)$jumlah * (float)$harga;
+                $detailModel->update($detailId, [
+                    'jumlah' => $jumlah_db,
+                    'subtotal' => $subtotal
+                ]);
+                $total += $subtotal;
+            }
+        }
+        // Update total pembelian
+        $pembelianModel->update($id, ['total' => $total]);
+
+        return redirect()->to('produksi/pembelian')->with('success', 'Pembelian berhasil diperbarui.');
+    }
+
+    // Update status pembelian dan jika sudah diterima, tambah stok bahan
+    public function updateStatusPembelian($id, $status)
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
+        $pembelianModel = new PembelianModel();
+        $detailModel = new DetailPembelianModel();
+        $bahanModel = new BahanModel();
+
+        $pembelian = $pembelianModel->find($id);
+        if (!$pembelian) {
+            return redirect()->back()->with('error', 'Data pembelian tidak ditemukan.');
+        }
+
+        // Jika status diubah menjadi sudah_diterima dan sebelumnya belum_diterima
+        if ($status === 'sudah_diterima' && $pembelian['status_barang'] === 'belum_diterima') {
+            $details = $detailModel->where('pembelian_id', $id)->findAll();
+            foreach ($details as $d) {
+                $bahan = $bahanModel->find($d['bahan_id']);
+                if ($bahan) {
+                    // Tambah stok bahan
+                    $bahanModel->update($bahan['id'], [
+                        'stok' => $bahan['stok'] + $d['jumlah']
+                    ]);
+                }
+            }
+        }
+
+        // Update status_barang
+        $pembelianModel->update($id, ['status_barang' => $status]);
+        return redirect()->to(base_url('produksi/pembelian'))->with('success', 'Status pembelian berhasil diubah.');
     }
 
 
@@ -188,6 +365,9 @@ class Produksi extends BaseController
     //BAHAN MENTAH
     public function bahan()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
 
         $bahanModel = new BahanModel();
         $data = [
@@ -200,6 +380,9 @@ class Produksi extends BaseController
 
     public function create()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bahanmodel = new BahanModel();
 
         $data = [
@@ -212,6 +395,9 @@ class Produksi extends BaseController
 
     public function simpanBahan()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bahanModel = new BahanModel();
         $kode = $this->request->getPost('kode');
 
@@ -244,6 +430,9 @@ class Produksi extends BaseController
 
     public function editBahan($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bahanmodel = new BahanModel();
         $bahan = $bahanmodel->find($id);
         // Konversi stok ke satuan tampil
@@ -264,6 +453,9 @@ class Produksi extends BaseController
 
     public function updateBahan($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bahanModel = new BahanModel();
         $kode       = $this->request->getPost('kode');
 
@@ -296,6 +488,9 @@ class Produksi extends BaseController
 
     public function hapusBahan($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bahanModel = new BahanModel();
         $bahanModel->delete($id);
 
@@ -304,6 +499,9 @@ class Produksi extends BaseController
     //BSJ
     public function bsj()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
 
         $bsjModel = new BSJModel();
         $data = [
@@ -316,6 +514,9 @@ class Produksi extends BaseController
 
     public function tambahBSJ()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bsjModel = new BSJModel();
 
         $data = [
@@ -328,6 +529,9 @@ class Produksi extends BaseController
 
     public function simpanBSJ()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bsjModel = new BSJModel();
         $kode = $this->request->getPost('kode');
 
@@ -356,6 +560,9 @@ class Produksi extends BaseController
 
     public function editBSJ($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bsjModel = new BSJModel();
 
         $data = [
@@ -368,6 +575,9 @@ class Produksi extends BaseController
 
     public function updateBSJ($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bsjModel = new BSJModel();
         $kode       = $this->request->getPost('kode');
         $stok = $this->request->getPost('stok');
@@ -393,6 +603,9 @@ class Produksi extends BaseController
 
     public function hapusBSJ($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $bsjModel = new \App\Models\BSJModel();
         $komposisiModel = new \App\Models\KomposisiBahanBSJModel();
 
@@ -414,6 +627,9 @@ class Produksi extends BaseController
 
     public function inputProduksi()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $tkModel = new BiayaTenagaKerjaModel();
         $bopModel = new BiayaOverheadModel();
         $bsjModel = new BSJModel();
@@ -443,6 +659,9 @@ class Produksi extends BaseController
 
     public function simpanProduksi()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $produksiModel     = new \App\Models\ProduksiModel();
         $detailModel       = new \App\Models\DetailProduksiModel();
         $bahanModel        = new \App\Models\BahanModel();
@@ -534,6 +753,9 @@ class Produksi extends BaseController
 
     public function daftarProduksi()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $produksiModel = new \App\Models\ProduksiModel();
         $bsjModel      = new \App\Models\BSJModel();
 
@@ -556,6 +778,9 @@ class Produksi extends BaseController
 
     public function detailProduksi($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $produksiModel = new \App\Models\ProduksiModel();
         $bsjModel = new \App\Models\BSJModel();
         $detailModel = new \App\Models\DetailProduksiModel();
@@ -598,6 +823,9 @@ class Produksi extends BaseController
 
     public function hapusProduksi($id)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $produksiModel = new ProduksiModel();
         $produksiModel->delete($id);
 
@@ -606,6 +834,9 @@ class Produksi extends BaseController
 
     public function updateStatusProduksi($id, $status)
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $produksiModel = new \App\Models\ProduksiModel();
         $bsjModel = new \App\Models\BSJModel();
         $detailModel = new \App\Models\DetailProduksiModel();
@@ -663,6 +894,9 @@ class Produksi extends BaseController
 
     public function formHPP()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $produksiModel = new \App\Models\ProduksiModel();
         $produksi = $produksiModel->where('status', 'selesai')->findAll();
         return view('produksi/hpp/form', [
@@ -673,6 +907,9 @@ class Produksi extends BaseController
 
     public function simpanHPP()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $hppModel = new \App\Models\HPPModel();
         $produksiModel = new \App\Models\ProduksiModel();
         $produksi_id = $this->request->getPost('produksi_id');
@@ -699,6 +936,9 @@ class Produksi extends BaseController
 
     public function indexHPP()
     {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
         $hppModel = new \App\Models\HPPModel();
         $produksiModel = new \App\Models\ProduksiModel();
         $bsjModel = new \App\Models\BSJModel();

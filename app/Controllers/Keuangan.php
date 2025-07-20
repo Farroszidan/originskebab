@@ -35,7 +35,7 @@ class Keuangan extends BaseController
         // Update hanya untuk akun Aset yang berelasi dengan outlet
         $db->query("
         UPDATE akun 
-        SET saldo_awal = saldo_awal + ? 
+        SET saldo = saldo + ? 
         WHERE kas_outlet_id = ? AND jenis_akun = 'Aset'
     ", [$jumlah, $outlet_id]);
 
@@ -91,7 +91,6 @@ class Keuangan extends BaseController
         return view('keuangan/index_jurnal', $data);
     }
 
-
     public function create_jurnal()
     {
         if (!in_groups('keuangan')) {
@@ -119,14 +118,16 @@ class Keuangan extends BaseController
 
         $db = \Config\Database::connect();
         $builder = $db->table('jurnal_umum');
+        $akunBuilder = $db->table('akun');
 
         $tanggal = $this->request->getPost('tanggal');
         $akun_debit = $this->request->getPost('akun_debit');
         $akun_kredit = $this->request->getPost('akun_kredit');
-        $nominal = $this->request->getPost('nominal');
+        $nominal = (float) $this->request->getPost('nominal');
         $keterangan = $this->request->getPost('keterangan');
         $supplier_id = $this->request->getPost('supplier_id');
 
+        // Simpan ke jurnal umum
         $data = [
             [
                 'tanggal' => $tanggal,
@@ -134,7 +135,7 @@ class Keuangan extends BaseController
                 'debit' => $nominal,
                 'kredit' => 0,
                 'keterangan' => $keterangan,
-                'supplier_id' => null, // debit tidak butuh supplier
+                'supplier_id' => null,
             ],
             [
                 'tanggal' => $tanggal,
@@ -142,13 +143,36 @@ class Keuangan extends BaseController
                 'debit' => 0,
                 'kredit' => $nominal,
                 'keterangan' => $keterangan,
-                'supplier_id' => $supplier_id ?: null
+                'supplier_id' => $supplier_id ?: null,
             ]
         ];
-
         $builder->insertBatch($data);
 
-        return redirect()->to('/keuangan/index')->with('success', 'Jurnal berhasil disimpan.');
+        // Ambil data akun debit
+        $akunDebit = $akunBuilder->where('id', $akun_debit)->get()->getRow();
+        if ($akunDebit->tipe == 'debit') {
+            $akunBuilder->set('saldo', 'saldo + ' . $nominal, false)
+                ->where('id', $akun_debit)
+                ->update();
+        } else {
+            $akunBuilder->set('saldo', 'saldo - ' . $nominal, false)
+                ->where('id', $akun_debit)
+                ->update();
+        }
+
+        // Ambil data akun kredit
+        $akunKredit = $akunBuilder->where('id', $akun_kredit)->get()->getRow();
+        if ($akunKredit->tipe == 'kredit') {
+            $akunBuilder->set('saldo', 'saldo + ' . $nominal, false)
+                ->where('id', $akun_kredit)
+                ->update();
+        } else {
+            $akunBuilder->set('saldo', 'saldo - ' . $nominal, false)
+                ->where('id', $akun_kredit)
+                ->update();
+        }
+
+        return redirect()->to('/keuangan/index')->with('success', 'Jurnal berhasil disimpan dan saldo akun diperbarui.');
     }
 
     public function create_akun()
@@ -170,7 +194,7 @@ class Keuangan extends BaseController
             'nama_akun'  => $this->request->getPost('nama_akun'),
             'jenis_akun' => $this->request->getPost('jenis_akun'),
             'tipe'       => $this->request->getPost('tipe'), // ✅ disesuaikan dari 'tipe_saldo' jadi 'tipe'
-            'saldo_awal' => $this->request->getPost('saldo_awal'),
+            'saldo' => $this->request->getPost('saldo'),
         ]);
 
         return redirect()->to(base_url('keuangan/create_akun'));
@@ -200,7 +224,7 @@ class Keuangan extends BaseController
             'nama_akun'  => $this->request->getPost('nama_akun'),
             'jenis_akun' => $this->request->getPost('jenis_akun'),
             'tipe'       => $this->request->getPost('tipe'),
-            'saldo_awal' => $this->request->getPost('saldo_awal'),
+            'saldo' => $this->request->getPost('saldo'),
         ]);
 
         session()->setFlashdata('message', 'Akun berhasil diperbarui.');
@@ -272,9 +296,9 @@ class Keuangan extends BaseController
             $kreditSebelum = $jurnalSebelum->kredit ?? 0;
 
             if ($a['tipe'] === 'debit') {
-                $saldo_awal_periode = $a['saldo_awal'] + $debitSebelum - $kreditSebelum;
+                $saldo_awal_periode = $debitSebelum - $kreditSebelum;
             } else {
-                $saldo_awal_periode = $a['saldo_awal'] - $debitSebelum + $kreditSebelum;
+                $saldo_awal_periode = $kreditSebelum - $debitSebelum;
             }
 
             // Mutasi bulan berjalan
@@ -334,7 +358,7 @@ class Keuangan extends BaseController
       AND j.supplier_id IS NOT NULL
     GROUP BY p.id, a.id
     HAVING jumlah != 0
-");
+    ");
 
         $utang = $query->getResultArray();
 
@@ -494,7 +518,7 @@ class Keuangan extends BaseController
     GROUP BY akun.kode_akun, akun.nama_akun
     HAVING SUM(jurnal_umum.debit) - SUM(jurnal_umum.kredit) != 0
     ORDER BY akun.nama_akun ASC
-");
+    ");
 
         $piutang = $query->getResultArray();
 
@@ -890,8 +914,9 @@ class Keuangan extends BaseController
         $tahunSebelumnya = (int) $periodeAwal->format('Y');
 
         // Ambil modal awal dari akun 'Modal'
-        $modalAkun = $akunModel->where('nama_akun', 'Modal')->first();
-        $modalAwal = $modalAkun['saldo_awal'] ?? 0;
+        $modalAkun = $akunModel->where('kode_akun', '301')->first();
+        $modalAwal = $modalAkun['saldo'] ?? 0;
+
 
         // Hitung saldo awal (modal + laba - prive bulan sebelumnya)
         if ($filter === 'rentang') {
@@ -937,9 +962,9 @@ class Keuangan extends BaseController
             $labaLalu = $pendapatanLalu - $bebanLalu;
         }
 
-        $modalAwalBulanIni = $akunModel->getModalAkhirSebelumPeriode($awal);
+        $modalAwalBulanIni = $akunModel->getSaldoAkunSampaiTanggal('301', date('Y-m-d', strtotime($awal . ' -1 day')));
         if ($modalAwalBulanIni === null) {
-            $modalAwalBulanIni = $modalAwal + $labaLalu - $priveLalu;
+            $modalAwalBulanIni = 0;
         }
         // Hitung laba rugi & prive periode saat ini
         $pendapatan = $akunModel->getTotalPendapatanRange($awal, $akhir);
@@ -953,7 +978,7 @@ class Keuangan extends BaseController
 
         // Ambil akun modal
         $modalAkun = $akunModel->where('nama_akun', 'Modal')->first();
-        $modalAwal = $modalAkun['saldo_awal'] ?? 0;
+        $modalAwal = $modalAkun['saldo'] ?? 0;
 
         // Laba rugi periode ini (dari jurnal)
         $akunList = $akunModel->whereIn('jenis_akun', ['Pendapatan', 'Beban'])->findAll();
@@ -1641,9 +1666,9 @@ class Keuangan extends BaseController
             $kreditSebelum = $jurnalSebelum->kredit ?? 0;
 
             if ($a['tipe'] === 'debit') {
-                $saldo_awal_periode = $a['saldo_awal'] + $debitSebelum - $kreditSebelum;
+                $saldo_awal_periode = $a['saldo'] + $debitSebelum - $kreditSebelum;
             } else {
-                $saldo_awal_periode = $a['saldo_awal'] - $debitSebelum + $kreditSebelum;
+                $saldo_awal_periode = $a['saldo'] - $debitSebelum + $kreditSebelum;
             }
 
             $jurnalBulanIni = $db->table('jurnal_umum')

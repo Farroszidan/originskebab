@@ -24,7 +24,33 @@
             <?php
             // Deteksi jenis notifikasi
             $isi = strtolower($notifikasi['isi']);
-            if (strpos($isi, 'permintaan') !== false): ?>
+            if ($notifikasi['tipe'] === 'perintah_kerja'): ?>
+                <h6 class="text-success">Detail Perintah Kerja Produksi</h6>
+                <?php if (!empty($bsj)): ?>
+                    <div class="mb-3">
+                        <strong>Daftar BSJ yang harus diproduksi:</strong>
+                        <ul>
+                            <?php foreach ($bsj as $item): ?>
+                                <li>
+                                    <?= esc($item['nama'] ?? '-') ?>: <strong><?= esc($item['jumlah'] ?? 0) ?></strong>
+                                    <?php if (!empty($item['totalBiaya'])): ?> (Biaya: Rp <?= number_format($item['totalBiaya'], 0, ',', '.') ?>)<?php endif; ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-warning">Data BSJ tidak tersedia.</div>
+                <?php endif; ?>
+                <?php if (!empty($perintahKerja)): ?>
+                    <div class="mb-2">
+                        <strong>Tanggal:</strong> <?= esc($perintahKerja['tanggal'] ?? '-') ?><br>
+                        <strong>Jumlah Kulit:</strong> <?= esc($perintahKerja['jumlah_kulit'] ?? 0) ?><br>
+                        <strong>Jumlah Ayam:</strong> <?= esc($perintahKerja['jumlah_ayam'] ?? 0) ?><br>
+                        <strong>Jumlah Sapi:</strong> <?= esc($perintahKerja['jumlah_sapi'] ?? 0) ?><br>
+                        <strong>Total Biaya:</strong> Rp <?= number_format($perintahKerja['total_biaya'] ?? 0, 0, ',', '.') ?><br>
+                    </div>
+                <?php endif; ?>
+            <?php elseif (strpos($isi, 'permintaan') !== false): ?>
                 <h6 class="text-primary">Detail Permintaan</h6>
                 <p>Silakan cek halaman <a href="<?= base_url('permintaan') ?>">Permintaan</a> untuk menindaklanjuti.</p>
 

@@ -103,13 +103,16 @@
             const subtotal = totalJumlahKg * harga; // menggunakan jumlah dalam kg untuk perhitungan
             totalBiaya += subtotal;
 
+            // Tampilkan satuan di bawah jumlah
+            const satuan = bahan.satuan ? bahan.satuan : '';
+
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${bahan.nama}
                     <input type="hidden" name="bahan_baku[${bahan.id}]" value="${totalJumlahGram}">
                 </td>
                 <td>${bahan.kategori}</td>
-                <td>${totalJumlahKg.toFixed(2)}</td>
+                <td>${totalJumlahKg.toFixed(2)}<br><span class="badge badge-secondary">${satuan}</span></td>
                 <td>Rp ${harga.toLocaleString('id-ID')}</td>
                 <td>Rp ${subtotal.toLocaleString('id-ID')}</td>
             `;
