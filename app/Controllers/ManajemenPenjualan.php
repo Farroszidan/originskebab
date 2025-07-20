@@ -592,6 +592,44 @@ class ManajemenPenjualan extends BaseController
                 }
             }
 
+            if ($postData['metode_pembayaran'] === 'cash') {
+                $akunModel = new \App\Models\AkunModel();
+                $jurnal = $db->table('jurnal_umum');
+
+                // Mapping kode akun kas berdasarkan outlet
+                $kasOutletMap = [
+                    1 => 102, // Outlet Tembalang
+                    2 => 103, // Outlet Pleburan
+                    3 => 104, // dst
+                    4 => 105,
+                    5 => 106,
+                ];
+
+                $kodeAkunKas = $kasOutletMap[$postData['outlet_id']] ?? 102;
+
+                $akunKas = $akunModel->where('kode_akun', $kodeAkunKas)->first();
+                $akunPenjualan = $akunModel->where('kode_akun', 401)->first();
+
+                if ($akunKas && $akunPenjualan) {
+                    $jurnal->insert([
+                        'tanggal' => $postData['tgl_jual'],
+                        'akun_id' => $akunKas['id'],
+                        'debit' => $postData['grand_total'],
+                        'kredit' => 0,
+                        'keterangan' => 'Penjualan tunai outlet ID ' . $postData['outlet_id'],
+                    ]);
+
+                    $jurnal->insert([
+                        'tanggal' => $postData['tgl_jual'],
+                        'akun_id' => $akunPenjualan['id'],
+                        'debit' => 0,
+                        'kredit' => $postData['grand_total'],
+                        'keterangan' => 'Penjualan tunai outlet ID ' . $postData['outlet_id'],
+                    ]);
+                }
+            }
+
+
             $idJual = $jualModel->getInsertID();
 
             $mapBahan = [
@@ -2019,6 +2057,55 @@ class ManajemenPenjualan extends BaseController
                 'total' => $total[$i]
             ]);
         }
+
+        // === Otomatis simpan ke jurnal_umum ===
+        $db = \Config\Database::connect();
+        $akunModel = new \App\Models\AkunModel();
+        $jurnal = $db->table('jurnal_umum');
+
+        // Mapping akun kas outlet berdasarkan outlet_id
+        $kasOutletMap = [
+            1 => 102,
+            2 => 103,
+            3 => 104,
+            4 => 105,
+            5 => 106,
+        ];
+
+        // Ambil kode akun kas sesuai outlet ID
+        $kodeAkunKas = $kasOutletMap[$outlet_id] ?? null;
+
+        if ($kodeAkunKas) {
+            $akunKas = $akunModel->where('kode_akun', $kodeAkunKas)->first();
+            $akunOperasional = $akunModel->where('kode_akun', 507)->first();
+
+            if ($akunKas && $akunOperasional) {
+                // Hitung total pembelian
+                $totalPembelian = 0;
+                foreach ($total as $jumlah) {
+                    $totalPembelian += $jumlah;
+                }
+
+                // Simpan jurnal debit untuk beban operasional penjualan
+                $jurnal->insert([
+                    'tanggal' => $tanggal,
+                    'akun_id' => $akunOperasional['id'],
+                    'debit' => $totalPembelian,
+                    'kredit' => 0,
+                    'keterangan' => 'Pembelian operasional outlet ID ' . $outlet_id
+                ]);
+
+                // Simpan jurnal kredit untuk kas outlet
+                $jurnal->insert([
+                    'tanggal' => $tanggal,
+                    'akun_id' => $akunKas['id'],
+                    'debit' => 0,
+                    'kredit' => $totalPembelian,
+                    'keterangan' => 'Pengeluaran kas outlet ID ' . $outlet_id . ' untuk pembelian operasional'
+                ]);
+            }
+        }
+
 
         return redirect()->to(base_url('manajemen-penjualan/pembelian-operasional'))->with('success', 'Pembelian berhasil disimpan.');
     }

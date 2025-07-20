@@ -91,7 +91,6 @@ class Keuangan extends BaseController
         return view('keuangan/index_jurnal', $data);
     }
 
-
     public function create_jurnal()
     {
         if (!in_groups('keuangan')) {

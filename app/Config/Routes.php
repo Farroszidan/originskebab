@@ -188,7 +188,7 @@ $routes->get('notifikasi/tandai_semua', 'Notifikasi::tandai_semua');
 $routes->get('notifikasi/detail/(:num)', 'Notifikasi::detail/$1');
 
 // KEUANGAN
-$routes->get('dashboard', 'Dashboard::index');
+$routes->get('dashboard/index', 'Dashboard::index');
 $routes->get('keuangan/isi-kas', 'Keuangan::isiKas', ['filter' => 'role:keuangan']);
 $routes->post('keuangan/isi-kas', 'Keuangan::simpanIsiKas', ['filter' => 'role:keuangan']);
 

@@ -187,7 +187,7 @@
     <?php if (in_groups('keuangan')) : ?>
         <!-- Nav Item - Dashboard -->
         <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('keuangan/dashboard'); ?>">
+            <a class="nav-link" href="<?= base_url('dashboard/index'); ?>">
                 <i class="fas fa-fw fa-tachometer-alt text-primary"></i>
                 <span>Dashboard</span>
             </a>
@@ -198,14 +198,6 @@
             <a class="nav-link" href="<?= base_url('notifikasi/pesan_masuk'); ?>">
                 <i class="fas fa-fw fa-inbox text-info"></i>
                 <span>Pesan Masuk</span>
-            </a>
-        </li>
-
-        <!-- Nav Item - Manajemen TO -->
-        <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('manajemen-transaksi'); ?>">
-                <i class="fas fa-fw fa-clipboard-list text-success"></i>
-                <span>Manajemen TO</span>
             </a>
         </li>
 
