@@ -8,6 +8,6 @@ class BahanModel extends Model
 {
     protected $table = 'bahan';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['kode', 'nama', 'kategori', 'jenis', 'stok', 'satuan', 'harga_satuan'];
+    protected $allowedFields = ['kode', 'nama', 'kategori', 'jenis', 'stok', 'satuan', 'harga_satuan', 'saldo'];
     protected $useTimestamps = true;
 }

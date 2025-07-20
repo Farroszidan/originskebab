@@ -10,10 +10,15 @@
 <div class="container-fluid">
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h1 class="h3 mb-4 text-gray-800"><?= esc($tittle); ?></h1>
-
-            <!-- Tombol Tambah BSJ -->
-            <a href="<?= base_url('produksi/persediaan/tambah_bsj'); ?>" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> Tambah BSJ</a>
+            <h1 class="h3 text-gray-800 mb-0"><?= esc($tittle); ?></h1>
+            <div class="d-flex gap-2">
+                <a href="<?= base_url('produksi/persediaan/tambah_bsj'); ?>" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Tambah BSJ
+                </a>
+                <a href="<?= base_url('produksi/persediaan/kartu/bsj'); ?>" class="btn btn-info">
+                    <i class="fas fa-search"></i> Cek Kartu Persediaan
+                </a>
+            </div>
         </div>
 
         <!-- Tabel Daftar BSJ -->
