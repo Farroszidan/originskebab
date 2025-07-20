@@ -53,14 +53,15 @@
             </a>
             <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
+                    <h6 class="collapse-header">Shift:</h6>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
+                    <h6 class="collapse-header">Transaksi:</h6>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/inputtransaksi'); ?>">Input Transaksi</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/daftar-transaksi'); ?>">Daftar Transaksi</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/persediaanOutlet'); ?>">Persediaan Outlet</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/pembelian-operasional'); ?>">Pembelian Operasional</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/data-shift'); ?>">Data Shift</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/permintaan'); ?>">
-                        Permintaan ke Produksi
+                        Permintaan BSJ dan BP
                     </a>
                 </div>
             </div>
@@ -73,10 +74,7 @@
             </a>
             <div id="collapseLaporan" class="collapse" aria-labelledby="headingLaporan" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-laporan-shift'); ?>">
-                        <i class="fas fa-fw fa-pencil-alt text-primary mr-1"></i> Input Laporan Shift
-                    </a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/laporanpenjualan'); ?>">
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/laporanPenjualan'); ?>">
                         <i class="fas fa-fw fa-file-invoice-dollar text-success mr-1"></i> Laporan Penjualan
                     </a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/hppPenjualan'); ?>">
@@ -85,44 +83,6 @@
                 </div>
             </div>
         </li>
-
-        <li class="nav-item">
-            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseBTKL">
-                <i class="fas fa-fw fa-user-check"></i>
-                <span>BTKL</span>
-            </a>
-            <div id="collapseBTKL" class="collapse" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/data-shift'); ?>">Data Shift</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/btkl'); ?>">Perhitungan Gaji</a>
-                </div>
-            </div>
-        </li>
-
-        <!-- Nav Item - Manajemen TO -->
-        <!-- <li class="nav-item">
-            <a class="nav-link" href="<?= base_url('manajemen-transaksi'); ?>">
-                <i class="fas fa-fw fa-folder"></i>
-                <span>Manajemen TO</span>
-            </a>
-        </li> -->
-
-        <!-- Nav Item - Master -->
-        <!-- <li class="nav-item">
-            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseMasterPenjualan"
-                aria-expanded="true" aria-controls="collapseMasterPenjualan">
-                <i class="fas fa-fw fa-cog"></i>
-                <span>Master</span>
-            </a>
-            <div id="collapseMasterPenjualan" class="collapse" aria-labelledby="headingMasterPenjualan" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/daftar-transaksi'); ?>">Daftar Transaksi</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/daftarMenu'); ?>">Daftar Menu</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/stokOutlet'); ?>">Daftar Stok Outlet</a>
-                </div>
-            </div>
-        </li> -->
     <?php endif; ?>
 
     <!-- Role Produksi -->
@@ -255,22 +215,23 @@
             </a>
             <div id="collapseKeuangan" class="collapse" aria-labelledby="headingKeuangan" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Laporan Keuangan:</h6>
+                    <h6 class="collapse-header">Menu</h6>
                     <a class="collapse-item" href="<?= base_url('/keuangan/akun') ?>">
                         <i class="fas fa-fw fa-user-circle mr-1 text-primary"></i> Daftar Akun
                     </a>
                     <a class="collapse-item" href="<?= base_url('/keuangan/index') ?>">
                         <i class="fas fa-fw fa-book mr-1 text-primary"></i> Jurnal Umum
                     </a>
+
+                    <a class="collapse-item" href="<?= base_url('/keuangan/neraca_saldo') ?>">
+                        <i class="fas fa-fw fa-balance-scale mr-1 text-success"></i> Neraca Saldo
+                    </a>
+                    <h6 class="collapse-header">Laporan Keuangan</h6>
                     <a class="collapse-item" href="<?= base_url('keuangan/laporan_utang'); ?>">
                         <i class="fas fa-fw fa-file-invoice mr-1 text-warning"></i> Laporan Utang
                     </a>
                     <a class="collapse-item" href="<?= base_url('keuangan/laporan_piutang'); ?>">
                         <i class="fas fa-fw fa-file-invoice-dollar mr-1 text-success"></i> Laporan Piutang
-                    </a>
-
-                    <a class="collapse-item" href="<?= base_url('/keuangan/neraca_saldo') ?>">
-                        <i class="fas fa-fw fa-balance-scale mr-1 text-success"></i> Neraca Saldo
                     </a>
                     <a class="collapse-item" href="<?= base_url('keuangan/laba_rugi'); ?>">
                         <i class="fas fa-fw fa-chart-line mr-1 text-info"></i> Laporan Laba Rugi
@@ -313,24 +274,20 @@
             </a>
             <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
+                    <h6 class="collapse-header">Shift:</h6>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
+                    <h6 class="collapse-header">Transaksi:</h6>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/inputtransaksi'); ?>">Input Transaksi</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/daftar-transaksi'); ?>">Daftar Transaksi</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/persediaanOutlet'); ?>">Persediaan Outlet</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/pembelian-operasional'); ?>">Pembelian Operasional</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/data-shift'); ?>">Data Shift</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/permintaan'); ?>">
-                        Permintaan ke Produksi
+                        Permintaan BSJ dan BP
                     </a>
                 </div>
             </div>
         </li>
-        <li class="nav-item">
-            <!-- <a class="nav-link" href="<?= base_url('manajemen-penjualan/laporanHarian'); ?>">
-                <i class="fas fa-fw fa-file-alt"></i>
-                <span>Laporan Harian</span>
-            </a> -->
-        </li>
+
         <li class="nav-item">
             <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseProduksi"
                 aria-expanded="true" aria-controls="collapseProduksi">
@@ -400,10 +357,7 @@
             </a>
             <div id="collapseLaporan" class="collapse" aria-labelledby="headingLaporan" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-laporan-shift'); ?>">
-                        <i class="fas fa-fw fa-pencil-alt text-primary mr-1"></i> Input Laporan Shift
-                    </a>
-                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/laporanpenjualan'); ?>">
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/laporanPenjualan'); ?>">
                         <i class="fas fa-fw fa-file-invoice-dollar text-success mr-1"></i> Laporan Penjualan
                     </a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/hppPenjualan'); ?>">
@@ -436,17 +390,18 @@
         <li class="nav-item">
             <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseBTKL" aria-expanded="true" aria-controls="collapseBTKL">
                 <i class="fas fa-fw fa-user-check"></i>
-                <span>BTKL</span>
+                <span>Manajemen Gaji</span>
             </a>
-            <div id="collapseBTKL" class="collapse <?= (uri_string() === 'manajemen-penjualan/input-shift' || uri_string() === 'manajemen-penjualan/data-shift' || uri_string() === 'manajemen-penjualan/btkl' || uri_string() === 'manajemen-penjualan/btkl/form') ? 'show' : '' ?>" data-parent="#accordionSidebar">
+            <div id="collapseBTKL" class="collapse" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Shift & Gaji:</h6>
-                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/input-shift' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
-                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/data-shift' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/data-shift'); ?>">Data Shift</a>
-                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/btkl/form' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/btkl/form'); ?>">Hitung Gaji BTKL</a>
-                    <a class="collapse-item <?= uri_string() === 'manajemen-penjualan/btkl' ? 'active' : '' ?>" href="<?= base_url('manajemen-penjualan/btkl'); ?>">Rekap Gaji BTKL</a>
+                    <h6 class="collapse-header">Shift dan Gaji:</h6>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/input-shift'); ?>">Input Jadwal Shift</a>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/data-shift'); ?>">Data Shift</a>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/btkl/form'); ?>">Hitung Gaji Pegawai Outlet</a>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/btkl'); ?>">Rekap Gaji Pegawai Outlet</a>
                 </div>
             </div>
+
         </li>
 
     <?php endif; ?>

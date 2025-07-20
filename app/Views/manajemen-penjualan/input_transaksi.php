@@ -182,6 +182,7 @@
             <?php else : ?>
                 <input type="hidden" id="hidden_outlet_id" name="outlet_id" value="<?= esc(user()->outlet_id) ?>">
             <?php endif ?>
+
         </div>
 
         <!-- Total di kanan atas -->
@@ -277,7 +278,6 @@
     <div class="bg-black" aria-live="polite" aria-atomic="true" id="terbilang">Nol Rupiah</div>
 </div>
 
-<!-- Modal Pembayaran -->
 <!-- Modal Pembayaran -->
 <div class="modal fade" id="modalBayar" tabindex="-1" role="dialog" aria-labelledby="modalBayarLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">

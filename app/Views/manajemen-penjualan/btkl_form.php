@@ -4,7 +4,7 @@
 <div class="container mt-5">
     <div class="card shadow-sm border-0">
         <div class="card-header bg-primary text-white rounded-top">
-            <h5 class="mb-0"><i class="fas fa-calculator mr-2"></i>Perhitungan Gaji Karyawan (BTKL) - Shift Penjualan</h5>
+            <h5 class="mb-0"><i class="fas fa-calculator mr-2"></i>Perhitungan Gaji Pegawai Outlet</h5>
         </div>
         <div class="card-body">
 

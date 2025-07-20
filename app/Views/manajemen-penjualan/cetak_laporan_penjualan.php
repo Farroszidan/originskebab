@@ -3,12 +3,13 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Laporan Penjualan</title>
+    <title>Cetak Laporan Penjualan</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 40px;
             font-size: 14px;
+            color: #333;
         }
 
         h2,
@@ -17,135 +18,86 @@
             margin: 0;
         }
 
-        h4 {
-            margin-bottom: 20px;
-        }
-
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            margin-top: 30px;
         }
 
+        table,
         th,
         td {
-            border: 1px solid #444;
-            padding: 8px;
-            text-align: left;
+            border: 1px solid #999;
         }
 
         th {
-            background-color: #eee;
+            background-color: #f2f2f2;
+            padding: 8px;
         }
 
-        .right {
-            text-align: right;
+        td {
+            padding: 8px;
+            text-align: center;
         }
 
         .total-row {
             font-weight: bold;
-            background-color: #e0f7da;
+            background-color: #e8f5e9;
         }
 
         .summary {
-            margin-top: 30px;
-            width: 50%;
-            float: right;
+            margin-top: 40px;
         }
 
         .summary td {
-            border: 1px solid #444;
-            padding: 6px 10px;
-        }
-
-        .footer {
-            clear: both;
-            margin-top: 60px;
             text-align: right;
-            font-size: 12px;
-        }
-
-        @media print {
-            .footer {
-                position: fixed;
-                bottom: 10px;
-                right: 40px;
-            }
+            padding: 5px 10px;
         }
     </style>
 </head>
 
-<body onload="window.print()">
+<body>
 
-    <h2>Laporan Penjualan</h2>
-    <h4>
-        Tanggal:
-        <?= ($tanggal_awal === $tanggal_akhir)
-            ? esc(date('d-m-Y', strtotime($tanggal_awal)))
-            : esc(date('d-m-Y', strtotime($tanggal_awal))) . ' s/d ' . esc(date('d-m-Y', strtotime($tanggal_akhir))) ?>
-        <?= $outletNama ? " | Outlet: " . esc($outletNama) : '' ?>
-    </h4>
+    <h2>LAPORAN PENJUALAN</h2>
+    <h4>Periode: <?= date('d M Y', strtotime($tanggalAwal)) ?> - <?= date('d M Y', strtotime($tanggalAkhir)) ?></h4>
+    <?php if ($outletId): ?>
+        <h4>Outlet ID: <?= $outletId ?></h4>
+    <?php endif; ?>
 
     <table>
         <thead>
             <tr>
-                <th>Outlet</th>
-                <th>Shift</th>
-                <th>Jam</th>
+                <th>No</th>
+                <th>Tanggal</th>
+                <th>Nama Outlet</th>
                 <th>Total Penjualan</th>
                 <th>Total Pengeluaran</th>
-                <th>Rincian Pengeluaran</th>
+                <th>Laba Bruto</th>
             </tr>
         </thead>
         <tbody>
             <?php
-            $totalPenjualanAll = 0;
-            $totalPengeluaranAll = 0;
-            foreach ($laporan as $row):
-                $totalPenjualanAll += $row['total_penjualan'];
-                $totalPengeluaranAll += $row['total_pengeluaran'];
+            $no = 1;
+            foreach ($laporan as $item):
+                $laba = $item['total_penjualan'] - $item['total_pengeluaran'];
             ?>
                 <tr>
-                    <td><?= esc($row['nama_outlet']) ?></td>
-                    <td><?= esc($row['nama_shift']) ?></td>
-                    <td><?= esc($row['jam_mulai']) ?> - <?= esc($row['jam_selesai']) ?></td>
-                    <td class="right">Rp<?= number_format($row['total_penjualan'], 0, ',', '.') ?></td>
-                    <td class="right">Rp<?= number_format($row['total_pengeluaran'], 0, ',', '.') ?></td>
-                    <td><?= esc($row['keterangan_pengeluaran']) ?></td>
+                    <td><?= $no++ ?></td>
+                    <td><?= date('d/m/Y', strtotime($item['tanggal'])) ?></td>
+                    <td><?= esc($item['nama_outlet'] ?? 'Outlet ' . $item['outlet_id']) ?></td>
+                    <td><?= number_format($item['total_penjualan'], 0, ',', '.') ?></td>
+                    <td><?= number_format($item['total_pengeluaran'], 0, ',', '.') ?></td>
+                    <td><?= number_format($laba, 0, ',', '.') ?></td>
                 </tr>
             <?php endforeach; ?>
             <tr class="total-row">
-                <td colspan="3">Total Keseluruhan</td>
-                <td class="right">Rp<?= number_format($totalPenjualanAll, 0, ',', '.') ?></td>
-                <td class="right">Rp<?= number_format($totalPengeluaranAll, 0, ',', '.') ?></td>
-                <td>-</td>
+                <td colspan="3">TOTAL</td>
+                <td><?= number_format($grandTotalPenjualan, 0, ',', '.') ?></td>
+                <td><?= number_format($grandTotalPengeluaran, 0, ',', '.') ?></td>
+                <td><?= number_format($grandTotalLaba, 0, ',', '.') ?></td>
             </tr>
         </tbody>
     </table>
-
-    <!-- Ringkasan Total -->
-    <table class="summary">
-        <tr>
-            <td><strong>Total Penjualan</strong></td>
-            <td class="right">Rp<?= number_format($totalPenjualanAll, 0, ',', '.') ?></td>
-        </tr>
-        <tr>
-            <td><strong>Total Pengeluaran</strong></td>
-            <td class="right">Rp<?= number_format($totalPengeluaranAll, 0, ',', '.') ?></td>
-        </tr>
-        <tr>
-            <td><strong>Keuntungan Kotor</strong></td>
-            <td class="right">
-                <span style="color: <?= ($totalPenjualanAll - $totalPengeluaranAll) >= 0 ? 'green' : 'red' ?>;">
-                    Rp<?= number_format($totalPenjualanAll - $totalPengeluaranAll, 0, ',', '.') ?>
-                </span>
-            </td>
-        </tr>
-    </table>
-
-    <div class="footer">
-        Dicetak pada: <?= date('d-m-Y H:i') ?>
-    </div>
 
 </body>
 

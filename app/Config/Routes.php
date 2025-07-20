@@ -20,29 +20,25 @@ $routes->group('', ['filter' => 'role:admin,penjualan,produksi,keuangan'], funct
 
 
 // ==== ADMIN ====
-$routes->group('admin', ['filter' => 'role:admin'], function ($routes) {
-    // $routes->get('dashboard', 'Admin::index');
-    $routes->get('usermanajemen', 'Admin::userlist');
-    $routes->get('usermanajemen/(:num)', 'Admin::detail_manajemen/$1');
+// $routes->group('admin', ['filter' => 'role:admin'], function ($routes) {
+//     // Shift dan BTKL
+//     $routes->get('input-shift', 'Admin::inputShift');
+//     $routes->post('simpan-shift', 'Admin::simpanShift');
+//     $routes->get('data-shift', 'Admin::dataShift');
+//     $routes->get('delete-shift/(:num)', 'Admin::deleteShift/$1');
+//     $routes->get('btkl', 'Admin::btkl');
+//     $routes->post('btkl/hitung', 'Admin::hitungBtkl');
 
-    // Shift dan BTKL
-    $routes->get('input-shift', 'Admin::inputShift');
-    $routes->post('simpan-shift', 'Admin::simpanShift');
-    $routes->get('data-shift', 'Admin::dataShift');
-    $routes->get('delete-shift/(:num)', 'Admin::deleteShift/$1');
-    $routes->get('btkl', 'Admin::btkl');
-    $routes->post('btkl/hitung', 'Admin::hitungBtkl');
+//     // Manajemen pengguna berdasarkan outlet
+//     $routes->get('users-by-outlet/(:num)', 'Admin::getUsersByOutlet/$1');
 
-    // Manajemen pengguna berdasarkan outlet
-    $routes->get('users-by-outlet/(:num)', 'Admin::getUsersByOutlet/$1');
-
-    // Cetak
-    $routes->get('cetak/(:num)', 'Admin::cetak/$1');
-    $routes->get('cetakSemua', 'Admin::cetakSemua');
-});
+//     // Cetak
+//     $routes->get('cetak/(:num)', 'Admin::cetak/$1');
+//     $routes->get('cetakSemua', 'Admin::cetakSemua');
+// });
 
 // ==== PENJUALAN DAN ADMIN ====
-$routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan,keuangan'], function ($routes) {
+$routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan'], function ($routes) {
     // Transaksi
     $routes->get('inputtransaksi', 'ManajemenPenjualan::input_transaksi');
     $routes->post('simpanTransaksi', 'ManajemenPenjualan::simpanTransaksi');
@@ -51,28 +47,11 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan,keuanga
     $routes->get('detail/(:num)', 'ManajemenPenjualan::detail/$1');
     $routes->get('hapus/(:num)', 'ManajemenPenjualan::hapus/$1');
 
-    // Persediaan outlet
-    $routes->get('persediaanOutlet', 'ManajemenPenjualan::persediaanOutlet');
-    $routes->post('tambahPersediaanOutlet', 'ManajemenPenjualan::tambahPersediaanOutlet');
-
-    // Laporan harian
-    $routes->get('laporanHarian', 'ManajemenPenjualan::laporanHarian');
-    $routes->get('laporanpenjualan', 'ManajemenPenjualan::laporanPerTanggal');
-
-    // Cetak
+    // Cetak Transaksi Penjualan
     $routes->get('cetak/(:num)', 'ManajemenPenjualan::cetak/$1');
     $routes->get('cetakSemua', 'ManajemenPenjualan::cetakSemua');
     $routes->post('cetak_terpilih', 'ManajemenPenjualan::cetakTerpilih');
-    $routes->get('cetak_laporan_penjualan', 'ManajemenPenjualan::cetakLaporanPenjualan');
-
-    // Laporan shift
-    $routes->get('input-laporan-shift', 'ManajemenPenjualan::inputLaporanShift');
-    $routes->get('getDataShift', 'ManajemenPenjualan::getDataShift');
-    $routes->post('simpanLaporanShift', 'ManajemenPenjualan::simpanLaporanShift');
-    $routes->post('hapus-laporan-shift/(:num)', 'ManajemenPenjualan::hapusLaporanShift/$1');
-    $routes->get('input-shift', 'ManajemenPenjualan::inputShift');
-    $routes->get('data-shift', 'ManajemenPenjualan::dataShift');
-    $routes->post('simpan-shift', 'ManajemenPenjualan::simpanShift');
+    // $routes->get('cetak_laporan_penjualan', 'ManajemenPenjualan::cetakLaporanPenjualan');
 
     // Autocomplete
     $routes->get('searchKodeMenuAutocomplete', 'ManajemenPenjualan::searchKodeMenuAutocomplete');
@@ -84,6 +63,10 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan,keuanga
     $routes->get('pembelian-operasional/detail/(:num)', 'ManajemenPenjualan::detail_pembelian_operasional/$1');
     $routes->get('pembelian-operasional/delete/(:num)', 'ManajemenPenjualan::delete_pembelian_operasional/$1');
 
+    // Persediaan outlet
+    $routes->get('persediaanOutlet', 'ManajemenPenjualan::persediaanOutlet');
+    $routes->post('tambahPersediaanOutlet', 'ManajemenPenjualan::tambahPersediaanOutlet');
+
     // Daftar permintaan
     $routes->get('permintaan', 'ManajemenPenjualan::permintaan');
     $routes->get('formPermintaan', 'ManajemenPenjualan::formPermintaan');
@@ -91,8 +74,19 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan,keuanga
     $routes->get('permintaan/detail/(:num)', 'ManajemenPenjualan::detailPermintaan/$1');
     $routes->post('hapus/(:num)', 'ManajemenPenjualan::hapusPermintaan/$1');
 
+    // Manajemen Laporan Penjualan
+    $routes->get('laporanPenjualan', 'ManajemenPenjualan::laporanPenjualan');
+    $routes->post('simpanLaporanPenjualan', 'ManajemenPenjualan::simpanLaporanPenjualan');
+    $routes->get('cetakLaporanPenjualan', 'ManajemenPenjualan::cetakLaporanPenjualan');
+
+    // Laporan shift
+    $routes->get('input-shift', 'ManajemenPenjualan::inputShift');
+    $routes->get('data-shift', 'ManajemenPenjualan::dataShift'); // aslinya hanya admin
+    $routes->post('simpan-shift', 'ManajemenPenjualan::simpanShift');
+
     // HPP Penjualan
     $routes->get('hppPenjualan', 'ManajemenPenjualan::hppPenjualan');
+    $routes->post('simpanHppPenjualan', 'ManajemenPenjualan::simpanHppPenjualan');
 
     // Pegawai by outlet
     $routes->get('get-users/(:num)', 'ManajemenPenjualan::getUsersByOutlet/$1');
@@ -103,7 +97,6 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan,keuanga
 });
 
 
-// ==== ADMIN SAJA ====
 // Grup hanya untuk admin
 $routes->group('manajemen-penjualan', ['filter' => 'role:admin'], function ($routes) {
     // Master menu & varian
@@ -133,6 +126,9 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin'], function ($rou
     $routes->get('inputJamShift', 'ManajemenPenjualan::inputJamShift');
     $routes->post('simpanJamShift', 'ManajemenPenjualan::simpanJamShift');
     $routes->get('hapusJamShift/(:num)', 'ManajemenPenjualan::hapusJamShift/$1');
+
+    // Hapus Laporan Penjualan
+    $routes->post('hapus-laporan', 'ManajemenPenjualan::hapusLaporan');
 });
 
 // Grup untuk admin dan keuangan
@@ -147,23 +143,6 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,keuangan'], funct
 
     $routes->get('admin/dashboard', 'Admin::dashboard');
 });
-
-
-// ==== PENJUALAN DASHBOARD ====
-// $routes->group('penjualan', ['filter' => 'role:penjualan'], function ($routes) {
-//     $routes->get('dashboard', 'ManajemenPenjualan::dashboard');
-// });
-
-// ==== PRODUKSI ====
-// $routes->group('produksi', ['filter' => 'role:produksi'], function ($routes) {
-//     $routes->get('dashboard', 'Produksi::index');
-// });
-
-// ==== KEUANGAN ====
-// $routes->group('keuangan', ['filter' => 'role:keuangan'], function ($routes) {
-//     $routes->get('dashboard', 'Keuangan::index');
-// });
-
 // ==== LAPORAN PERSEDIAAN - MULTI ROLE ====
 $routes->group('admin/persediaan', ['filter' => 'role:admin,penjualan,keuangan'], function ($routes) {
     $routes->match(['get', 'post'], 'rekapStokHarian', 'Persediaan::rekapStokHarian');
