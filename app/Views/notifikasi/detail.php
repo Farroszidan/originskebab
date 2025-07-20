@@ -54,10 +54,34 @@
                 <h6 class="text-primary">Detail Permintaan</h6>
                 <p>Silakan cek halaman <a href="<?= base_url('permintaan') ?>">Permintaan</a> untuk menindaklanjuti.</p>
 
-            <?php elseif (strpos($isi, 'pengiriman') !== false): ?>
+            <?php elseif ($data['jenis'] === 'pengiriman'): ?>
                 <h6 class="text-warning">Detail Pengiriman</h6>
-                <p>Barang sedang dikirim. Lihat detail di <a href="<?= base_url('pengiriman') ?>">Pengiriman</a>.</p>
+                <p><strong>Tanggal:</strong> <?= date('d-m-Y', strtotime($data['tanggal'])) ?></p>
+                <p><strong>Jumlah Total:</strong> <?= $data['jumlah'] ?></p>
+                <p><strong>Catatan:</strong> <?= $data['catatan'] ?></p>
 
+                <?php if (!empty($data['detail_pengiriman'])): ?>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Nama Barang</th>
+                                <th>Satuan</th>
+                                <th>Jumlah</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($data['detail_pengiriman'] as $item): ?>
+                                <tr>
+                                    <td><?= esc($item['nama_barang']) ?></td>
+                                    <td><?= esc($item['satuan']) ?></td>
+                                    <td><?= esc($item['jumlah']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <p class="text-danger">Tidak ada detail pengiriman.</p>
+                <?php endif; ?>
             <?php elseif (strpos($isi, 'bukti pembelian') !== false): ?>
                 <h6 class="text-info">Detail Bukti Pembelian</h6>
                 <p>Bukti pembelian tersedia. Periksa di <a href="<?= base_url('bukti_pembelian') ?>">Bukti Pembelian</a>.</p>

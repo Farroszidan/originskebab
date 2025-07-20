@@ -289,6 +289,14 @@ class Transaksi extends BaseController
 
             case 'pengiriman':
                 $model = new \App\Models\PengirimanModel();
+                $detailModel = new \App\Models\PengirimanDetailModel();
+
+                $data = $model->find($id);
+                $detail = $detailModel->where('pengiriman_id', $id)->findAll();
+
+                // Hitung jumlah total dari detail
+                $data['jumlah_total'] = array_sum(array_column($detail, 'jumlah'));
+                $data['detail'] = $detail; // tambahkan agar $data['detail'] bisa dipakai di view
                 break;
 
             case 'bukti_transfer':
@@ -342,7 +350,7 @@ class Transaksi extends BaseController
         }
 
         return view('transaksi/detail', [
-            'jenis' => $jenis,
+            'jenis'          => $jenis,
             'data'  => $data,
             'detail' => $detail,
             'total_biaya_bahan' => $total_biaya_bahan,
