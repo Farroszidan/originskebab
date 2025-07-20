@@ -771,7 +771,6 @@ class ManajemenPenjualan extends BaseController
         ]);
     }
 
-
     public function detail($id)
     {
         $jualModel = new \App\Models\JualModel();
@@ -1057,254 +1056,10 @@ class ManajemenPenjualan extends BaseController
             'tittle' => 'Manajemen Persediaan Outlet'
         ]);
     }
-
-    public function rekapStokHarian()
-    {
-        // Ambil parameter dari GET (karena di routes pakai GET & POST)
-        $tanggal = $this->request->getGet('tanggal') ?? date('Y-m-d');
-        $outlet_id = in_groups('admin')
-            ? $this->request->getGet('outlet_id')
-            : user()->outlet_id;
-
-        $kemarin = date('Y-m-d', strtotime($tanggal . ' -1 day'));
-
-        $persediaanModel = new PersediaanOutletModel();
-        $logMasukModel = new LogPersediaanMasukModel();
-        $rekapModel = new LogPersediaanHarianModel();
-        $penjualanModel = new DetailJualModel();
-
-        $bahanList = $persediaanModel->where('outlet_id', $outlet_id)->findAll();
-
-        foreach ($bahanList as $bahan) {
-            $kode = $bahan['kode_bahan'];
-
-            // Ambil stok akhir kemarin
-            $stokKemarin = $rekapModel
-                ->where('outlet_id', $outlet_id)
-                ->where('kode_bahan', $kode)
-                ->where('tanggal', $kemarin)
-                ->first();
-
-            $stok_awal = $stokKemarin['stok_akhir'] ?? 0;
-
-            // Total masuk hari ini dari log persediaan masuk
-            $masuk = $logMasukModel->where([
-                'outlet_id' => $outlet_id,
-                'kode_bahan' => $kode,
-                'tanggal' => $tanggal
-            ])->selectSum('jumlah')->first()['jumlah'] ?? 0;
-
-            // Total keluar hari ini dari penjualan
-            // Pastikan kamu punya fungsi getKeluarBahan di DetailJualModel
-            $keluar = $penjualanModel->getKeluarBahan($outlet_id, $kode, $tanggal);
-
-            $stok_akhir = $stok_awal + $masuk - $keluar;
-
-            // Upsert data rekap stok harian
-            // Pastikan method upsert di model LogPersediaanHarianModel sudah diimplementasikan
-            $rekapModel->upsert([
-                'outlet_id' => $outlet_id,
-                'kode_bahan' => $kode,
-                'tanggal' => $tanggal,
-                'stok_awal' => $stok_awal,
-                'masuk' => $masuk,
-                'keluar' => $keluar,
-                'stok_akhir' => $stok_akhir,
-            ]);
-        }
-
-        return redirect()->back()->with('success', 'Rekap stok harian berhasil dihitung.');
-    }
-
     // ===================================== PERSEDIAAN OUTLET END ===================================================== //
 
     // ===================================== LAIN - LAIN START ===================================================== //
-    public function laporanHarian()
-    {
-        $tanggal = $this->request->getGet('tanggal') ?? date('Y-m-d');
-        $outletId = $this->request->getGet('outlet_id');
 
-        $shiftModel = new ShiftKerjaModel();
-        $pegawaiShiftModel = new PegawaiShiftModel();
-        $jualModel = new JualModel();
-        $buktiPembelianModel = new BuktiPembelianModel();
-        $outletModel = new OutletModel();
-        $userModel = new UserModel();
-
-        $shifts = $shiftModel->findAll();
-        $outlets = $outletModel->findAll();
-        $data = [];
-
-        // Tambahkan jenis pembayaran termasuk cash
-        $jenisPembayaran = [
-            'cash' => 0,
-            'qris' => 0,
-            'grabfood' => 0,
-            'gofood' => 0,
-            'shopeefood' => 0,
-        ];
-
-        // Persentase potongan untuk metode selain cash
-        $potonganPersen = [
-            'qris' => 0.007,
-            'grabfood' => 0.18,
-            'gofood' => 0.20,
-            'shopeefood' => 0.20,
-        ];
-
-        foreach ($shifts as $shift) {
-            $pegawaiShifts = $pegawaiShiftModel
-                ->where('shift_id', $shift['id'])
-                ->where('tanggal', $tanggal)
-                ->findAll();
-
-            foreach ($pegawaiShifts as $ps) {
-                $user = $userModel->find($ps['user_id']);
-                $outletUserId = $user['outlet_id'] ?? null;
-
-                if ($outletId && $outletUserId != $outletId) {
-                    continue;
-                }
-
-                $penjualan = $jualModel
-                    ->where('outlet_id', $outletUserId)
-                    ->where('tgl_jual', $tanggal)
-                    ->where('jam_jual >=', $ps['jam_mulai'])
-                    ->where('jam_jual <=', $ps['jam_selesai'])
-                    ->findAll();
-
-                foreach ($penjualan as $pj) {
-                    $jenis = strtolower($pj['jenis_cashless'] ?? 'cash');
-                    if (!array_key_exists($jenis, $jenisPembayaran)) {
-                        $jenis = 'cash'; // fallback
-                    }
-                    $jenisPembayaran[$jenis] += $pj['grand_total'];
-                }
-
-                $pengeluaran = $buktiPembelianModel
-                    ->where('outlet_id', $outletUserId)
-                    ->where('tanggal', $tanggal)
-                    ->findAll();
-
-                $totalPenjualan = array_sum(array_column($penjualan, 'grand_total'));
-                $totalPengeluaran = array_sum(array_column($pengeluaran, 'total'));
-
-                $data[] = [
-                    'shift' => $shift['nama_shift'],
-                    'jam' => $ps['jam_mulai'] . ' - ' . $ps['jam_selesai'],
-                    'kasir' => $user['username'] ?? 'Tidak diketahui',
-                    'outlet' => $this->getOutletName($outlets, $outletUserId),
-                    'total_penjualan' => $totalPenjualan,
-                    'total_pengeluaran' => $totalPengeluaran,
-                    'keterangan_pengeluaran' => implode(', ', array_column($pengeluaran, 'keterangan')),
-                ];
-            }
-        }
-
-        // Hitung potongan & bersih
-        $rincianPotongan = [];
-        foreach ($jenisPembayaran as $jenis => $total) {
-            $potongan = isset($potonganPersen[$jenis]) ? $total * $potonganPersen[$jenis] : 0;
-            $netto = $total - $potongan;
-
-            $rincianPotongan[] = [
-                'jenis' => ucfirst($jenis),
-                'bruto' => $total,
-                'potongan' => $potongan,
-                'netto' => $netto,
-                'persen' => $jenis === 'cash' ? 0 : $potonganPersen[$jenis] * 100,
-            ];
-        }
-
-        return view('manajemen-penjualan/input_laporan_shift', [
-            'tittle' => 'SIOK | Laporan Harian Shift',
-            'laporan' => $data,
-            'tanggal' => $tanggal,
-            'outlets' => $outlets,
-            'selectedOutlet' => $outletId,
-            'rincianPotongan' => $rincianPotongan,
-        ]);
-    }
-
-    // Helper untuk nama outlet
-    private function getOutletName($outlets, $id)
-    {
-        foreach ($outlets as $outlet) {
-            if ($outlet['id'] == $id) {
-                return $outlet['nama_outlet'];
-            }
-        }
-        return $id ? 'Unknown' : 'Semua Outlet';
-    }
-
-    public function hapusLaporanShift($id)
-    {
-        $laporanShiftModel = new \App\Models\LaporanShiftModel();
-        $laporanShift = $laporanShiftModel->find($id);
-
-        if (!$laporanShift) {
-            return redirect()->back()->with('error', 'Data tidak ditemukan.');
-        }
-
-        $laporanShiftModel->delete($id);
-
-        return redirect()->to('/manajemen-penjualan/laporanpenjualan?tanggal=' . $this->request->getPost('tanggal') . '&outlet_id=' . $this->request->getPost('outlet_id'))
-            ->with('success', 'Laporan shift berhasil dihapus.');
-    }
-
-    public function hapusLaporanHarian()
-    {
-        $tanggal = $this->request->getPost('tanggal');
-        $outlet_id = $this->request->getPost('outlet_id');
-
-        if (!$tanggal || !$outlet_id) {
-            return redirect()->back()->with('error', 'Tanggal dan Outlet tidak boleh kosong.');
-        }
-
-        $logModel = new LogPersediaanHarianModel();
-        $deleted = $logModel->where([
-            'tanggal' => $tanggal,
-            'outlet_id' => $outlet_id
-        ])->delete();
-
-        if ($deleted) {
-            return redirect()->back()->with('success', 'Laporan harian berhasil dihapus.');
-        } else {
-            return redirect()->back()->with('error', 'Tidak ada data yang dihapus.');
-        }
-    }
-
-    public function tambahStokMasuk()
-    {
-        $outlet_id = $this->request->getPost('outlet_id');
-        $kode_bahan = $this->request->getPost('kode_bahan');
-        $jumlah = (int) $this->request->getPost('jumlah');
-        $tanggal = $this->request->getPost('tanggal') ?? date('Y-m-d');
-
-        if (!$outlet_id || !$kode_bahan || !$jumlah) {
-            return redirect()->back()->with('error', 'Data stok masuk tidak lengkap.');
-        }
-
-        $persediaanModel = new PersediaanOutletModel();
-        $logMasukModel = new LogPersediaanMasukModel();
-
-        // Tambah stok di persediaan_outlet
-        $persediaanModel->tambahStok($outlet_id, $kode_bahan, $jumlah, $tanggal);
-
-        // Simpan log stok masuk
-        $logMasukModel->insert([
-            'outlet_id' => $outlet_id,
-            'kode_bahan' => $kode_bahan,
-            'jumlah' => $jumlah,
-            'tanggal' => $tanggal,
-            'created_at' => date('Y-m-d H:i:s')
-        ]);
-
-        // Hitung ulang rekap stok harian
-        $this->rekapStokHarian();
-
-        return redirect()->back()->with('success', 'Stok berhasil ditambahkan dan direkap.');
-    }
     // ===================================== LAIN - LAIN START ===================================================== //
 
     // =========================================== LAPORAN PENJUALAN START ============================================//
@@ -2285,7 +2040,6 @@ class ManajemenPenjualan extends BaseController
         ]);
     }
 
-
     // 2. Form input permintaan
     public function formPermintaan()
     {
@@ -2383,7 +2137,6 @@ class ManajemenPenjualan extends BaseController
 
         return redirect()->to('/manajemen-penjualan/permintaan')->with('success', 'Permintaan berhasil dihapus.');
     }
-
     // ===================================== PERMINTAAN END ===================================================== //
 
     // ===================================== HPP PENJUALAN START ===================================================== //
