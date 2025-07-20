@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <title>Laporan Perubahan Ekuitas</title>
     <style>
         body {
@@ -10,15 +10,20 @@
             font-size: 12px;
         }
 
-        h2 {
+        h2,
+        h3 {
             text-align: center;
-            margin-bottom: 20px;
+            margin: 0;
+        }
+
+        h3 {
+            margin-bottom: 15px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-top: 25px;
         }
 
         th,
@@ -36,11 +41,27 @@
         td.text-left {
             text-align: left;
         }
+
+        .font-bold {
+            font-weight: bold;
+        }
+
+        .text-danger {
+            color: red;
+        }
+
+        .text-success {
+            color: green;
+        }
     </style>
 </head>
 
 <body>
-    <h2>Laporan Perubahan Ekuitas<br>ORIGINS KEBAB<br><?= esc($judulPeriode) ?></h2>
+    <h2>Sistem Informasi Laporan Keuangan</h2>
+    <h2>Origins Kebab</h2>
+    <h3>Laporan Perubahan Ekuitas</h3>
+    <p style="text-align: center;"><?= esc($judulPeriode ?? '') ?></p>
+
     <table>
         <thead>
             <tr>
@@ -49,18 +70,34 @@
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($ekuitas as $item): ?>
-                <tr>
-                    <td class="text-left"><?= esc($item['keterangan']) ?></td>
-                    <td><?= number_format($item['jumlah'], 0, ',', '.') ?></td>
-                </tr>
-            <?php endforeach; ?>
+            <tr>
+                <td class="text-left">Modal Awal</td>
+                <td><?= number_format($modalAwal ?? 0, 0, ',', '.') ?></td>
+            </tr>
+            <tr>
+                <td class="text-left">Tambahan Modal</td>
+                <td><?= number_format($tambahanModal ?? 0, 0, ',', '.') ?></td>
+            </tr>
+            <tr>
+                <td class="text-left">Laba Bersih</td>
+                <td class="<?= ($labaBersih ?? 0) < 0 ? 'text-danger' : 'text-success' ?>">
+                    <?= number_format($labaBersih ?? 0, 0, ',', '.') ?>
+                </td>
+            </tr>
+            <tr>
+                <td class="text-left">Prive</td>
+                <td class="<?= ($prive ?? 0) < 0 ? 'text-danger' : 'text-success' ?>">
+                    <?= number_format($prive ?? 0, 0, ',', '.') ?>
+                </td>
+            </tr>
+            <tr class="font-bold">
+                <td class="text-left">Modal Akhir</td>
+                <td><?= number_format($modalAkhir ?? 0, 0, ',', '.') ?></td>
+            </tr>
         </tbody>
     </table>
-    <p style="margin-top:30px; font-size:12px;">
-        Dicetak pada: <?= esc($timestamp) ?>
-    </p>
-    <p style="font-size:12px;">
+
+    <p style="margin-top: 25px;">Dicetak pada: <?= esc($timestamp ?? date('d-m-Y H:i:s')) ?> WIB</p>
 </body>
 
 </html>

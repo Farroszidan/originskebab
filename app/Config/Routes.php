@@ -192,8 +192,9 @@ $routes->post('keuangan/simpan_pelunasan_utang', 'Keuangan::simpanPelunasanUtang
 $routes->get('keuangan/form_pelunasan_piutang/(:segment)', 'Keuangan::formPelunasanPiutang/$1');
 $routes->post('keuangan/simpan_pelunasan_piutang', 'Keuangan::simpanPelunasanPiutang');
 $routes->add('/keuangan/laba_rugi', 'Keuangan::laba_rugi', ['filter' => 'role:keuangan']); // menampilkan laporan laba rugi
-$routes->get('keuangan/laba_rugi/pdf', 'Keuangan::exportLabaRugiPDF'); //ekspor PDF laba rugi
-$routes->get('keuangan/laporan_perubahan_ekuitas', 'Keuangan::laporanPerubahanEkuitas');
+$routes->get('keuangan/laba_rugi/pdf', 'Keuangan::exportLabaRugiPDF'); //ekspor PDF laba rugi$routes->get('keuangan/laporanPerubahanEkuitas', 'Keuangan::laporanPerubahanEkuitas');
+$routes->get('keuangan/laporan_perubahan_ekuitas', 'Keuangan::laporanPerubahanEkuitas', ['filter' => 'role:keuangan']);
+
 $routes->get('keuangan/perubahan_ekuitas_pdf', 'Keuangan::exportPerubahanEkuitasPDF');
 $routes->get('keuangan/laporan_neraca', 'Keuangan::laporanNeraca');
 $routes->get('keuangan/exportNeracaPDF', 'Keuangan::exportNeracaPDF');
@@ -247,6 +248,7 @@ $routes->group('produksi', ['filter' => 'role:produksi,admin'], function ($route
 
 // PRODUKSI PERSEDIAAN
 //BAHAN MENTAH
+// PRODUKSI PERSEDIAAN
 $routes->group('produksi/persediaan', ['filter' => 'role:produksi,admin'], function ($routes) {
     $routes->get('/', 'Produksi::bahan');
     $routes->get('create', 'Produksi::create');
@@ -254,6 +256,11 @@ $routes->group('produksi/persediaan', ['filter' => 'role:produksi,admin'], funct
     $routes->get('edit/(:num)', 'Produksi::editBahan/$1');
     $routes->post('update/(:num)', 'Produksi::updateBahan/$1');
     $routes->get('delete/(:num)', 'Produksi::hapusBahan/$1');
+
+    // Kartu Persediaan Bahan
+    $routes->get('kartu/bahan', 'Produksi::kartuPersediaanBahan');
+    // Kartu Persediaan BSJ
+    $routes->get('kartu/bsj', 'Produksi::kartuPersediaanBSJ');
 });
 //BSJ
 $routes->group('produksi/persediaan/bsj', ['filter' => 'role:produksi,admin'], function ($routes) {
@@ -285,15 +292,27 @@ $routes->group('produksi/pengiriman', ['filter' => 'role:produksi,admin'], funct
     $routes->match(['get', 'post'], 'hapus/(:num)', 'Produksi::hapusPengiriman/$1');
 });
 
-// PRODUKSI LAPORAN
 $routes->group('produksi/laporan', ['filter' => 'role:produksi,admin'], function ($routes) {
-    $routes->get('/', 'Produksi::laporanIndex');
+    // 🔹 Laporan Pembelian
+    $routes->get('form_cetak_pembelian', 'Produksi::formCetakPembelian');
     $routes->get('cetak_pembelian', 'Produksi::cetakPembelian');
-    $routes->get('cetak_produksi', 'Produksi::cetakProduksi');
+
+    // 🔹 Laporan Persediaan Bahan
+    $routes->get('form_cetak_persediaan_bahan', 'Produksi::formCetakPersediaanBahan');
     $routes->get('cetak_persediaan_bahan', 'Produksi::cetakPersediaanBahan');
+
+    // 🔹 Laporan Persediaan BSJ
+    $routes->get('form_cetak_persediaan_bsj', 'Produksi::formCetakPersediaanBSJ');
     $routes->get('cetak_persediaan_bsj', 'Produksi::cetakPersediaanBSJ');
-    $routes->get('cetak_pengiriman', 'Produksi::cetakPengiriman');
+
+    // 🔹 Laporan Produksi
+    $routes->get('form_cetak_produksi', 'Produksi::formCetakProduksi');
+    $routes->get('cetak_produksi', 'Produksi::cetakProduksi');
+
+    // 🔹 Kartu Persediaan Bahan (bukan cetak tapi laporan)
+    $routes->get('kartu_persediaan_bahan', 'Produksi::kartuPersediaanBahan');
 });
+
 
 $routes->group('produksi/hpp', ['filter' => 'role:produksi,admin'], function ($routes) {
     $routes->get('form', 'Produksi::formHPP');

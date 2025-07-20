@@ -43,8 +43,6 @@
 <body>
 
     <div class="header">
-        <!-- Gambar dibaca langsung dari file sistem -->
-        <img src="file://<?= FCPATH . 'img/logo_icon.png' ?>" class="logo" alt="Logo">
         <h3 style="margin: 0;">Sistem Informasi Laporan Keuangan</h3>
         <h3 style="margin: 0;">Origins Kebab</h3>
         <h3 style="margin-bottom: 5px;">Laporan Utang</h3>
@@ -78,6 +76,9 @@
         Total utang periode ini: Rp <?= number_format($total_utang, 2, ',', '.') ?>
     </div>
 
+    <p style="text-align: left; font-size: 11px;">
+        Dicetak pada: <?= $timestamp ?>
+    </p>
 </body>
 
 </html>

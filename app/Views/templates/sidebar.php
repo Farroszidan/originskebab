@@ -137,7 +137,18 @@
                 data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
                     <h6 class="collapse-header">Laporan:</h6>
-                    <a class="collapse-item" href="<?= base_url('produksi/laporan'); ?>">laporan</a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_pembelian'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-primary"></i> Cetak Laporan Pembelian
+                    </a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_persediaan_bahan'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-success"></i> Cetak Laporan Persediaan Bahan
+                    </a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_persediaan_bsj'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-warning"></i> Cetak Laporan Persediaan BSJ
+                    </a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_produksi'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-info"></i> Cetak Laporan Produksi
+                    </a>
                 </div>
             </div>
         </li>

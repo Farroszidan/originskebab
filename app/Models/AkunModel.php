@@ -13,7 +13,7 @@ class AkunModel extends Model
         'nama_akun',
         'jenis_akun',
         'tipe',
-        'saldo_awal',
+        'saldo',
         'kas_outlet_id',
     ];
 
@@ -26,7 +26,7 @@ class AkunModel extends Model
     public function getKasOutlets()
     {
         return $this->db->table('akun a')
-            ->select('a.saldo_awal, o.nama_outlet')
+            ->select('a.saldo, o.nama_outlet')
             ->join('outlet o', 'o.id = a.kas_outlet_id')
             ->whereIn('a.kode_akun', ['102', '103', '104', '105', '106']) // hanya kas outlet
             ->orderBy('a.kode_akun', 'ASC')
@@ -39,7 +39,7 @@ class AkunModel extends Model
     // ✅ Ambil daftar akun pendapatan (untuk tampilan detail)
     public function getPendapatan()
     {
-        return $this->select('nama_akun, saldo_awal as jumlah')
+        return $this->select('nama_akun, saldo as jumlah')
             ->where("kode_akun BETWEEN '400' AND '499'")
             ->orderBy('CAST(kode_akun AS UNSIGNED)', 'ASC')
             ->findAll();
@@ -105,16 +105,16 @@ class AkunModel extends Model
     // ✅ Total saldo semua akun pendapatan (untuk perhitungan laba)
     public function getTotalPendapatan()
     {
-        return $this->selectSum('saldo_awal')
+        return $this->selectSum('saldo')
             ->where('kode_akun >=', 400)
             ->where('kode_akun <', 500)
-            ->first()['saldo_awal'] ?? 0;
+            ->first()['saldo'] ?? 0;
     }
 
     // ✅ Ambil daftar akun beban (untuk tampilan detail)
     public function getBeban()
     {
-        return $this->select('nama_akun, saldo_awal as jumlah')
+        return $this->select('nama_akun, saldo as jumlah')
             ->where("kode_akun BETWEEN '500' AND '599'")
             ->orderBy('CAST(kode_akun AS UNSIGNED)', 'ASC')
             ->findAll();
@@ -123,26 +123,26 @@ class AkunModel extends Model
     // ✅ Total saldo semua akun beban (untuk perhitungan laba)
     public function getTotalBeban()
     {
-        return $this->selectSum('saldo_awal')
+        return $this->selectSum('saldo')
             ->where('kode_akun >=', 500)
             ->where('kode_akun <', 600)
-            ->first()['saldo_awal'] ?? 0;
+            ->first()['saldo'] ?? 0;
     }
 
     // ✅ Modal awal: ambil saldo dari akun dengan kode 3xx (modal)
     public function getModalAwal()
     {
-        return $this->selectSum('saldo_awal')
+        return $this->selectSum('saldo')
             ->where("kode_akun BETWEEN '300' AND '399'")
-            ->first()['saldo_awal'] ?? 0;
+            ->first()['saldo'] ?? 0;
     }
 
     // ✅ Total prive: cari akun yang mengandung nama "prive"
     public function getPrive()
     {
-        return $this->selectSum('saldo_awal')
+        return $this->selectSum('saldo')
             ->like('LOWER(nama_akun)', 'prive')
-            ->first()['saldo_awal'] ?? 0;
+            ->first()['saldo'] ?? 0;
     }
 
     public function getPendapatanRange($awal, $akhir)
@@ -233,35 +233,69 @@ class AkunModel extends Model
 
     public function getModalAkhirSebelumPeriode($awalPeriode)
     {
-        // Ambil tanggal akhir sebelum periode ini
         $tanggalAkhir = date('Y-m-d', strtotime($awalPeriode . ' -1 day'));
 
         if (!$tanggalAkhir || $tanggalAkhir < '2000-01-01') {
             return 0;
         }
 
-        // Ambil saldo awal dari akun Modal
-        $modalAwal = $this->where('kode_akun', '301')->first()['saldo_awal'] ?? 0;
+        // Modal Awal dari akun 301 (saldo awal)
+        $akunModal = $this->where('kode_akun', '301')->first();
+        $modalAwal = $akunModal['saldo'] ?? 0;
 
-        // Hitung pendapatan, beban, prive dari awal tahun hingga sebelum periode ini
-        $awalTahun = date('Y', strtotime($tanggalAkhir)) . '-01-01';
+        // Ambil total pengisian modal dari jurnal (kode_akun 301)
+        $db = \Config\Database::connect();
 
-        $totalPendapatan = $this->getTotalPendapatanRange($awalTahun, $tanggalAkhir);
-        $totalBeban = $this->getTotalBebanRange($awalTahun, $tanggalAkhir);
-        $totalPrive = $this->getPriveRange($awalTahun, $tanggalAkhir);
+        $pengisianModal = $db->table('jurnal_umum ju')
+            ->join('akun a', 'a.id = ju.akun_id')
+            ->select('SUM(ju.kredit - ju.debit) as jumlah')
+            ->where('a.kode_akun', '301')
+            ->where('ju.tanggal <=', $tanggalAkhir)
+            ->get()->getRow()->jumlah ?? 0;
 
-        // Modal akhir = modal awal + laba - prive
-        $modalAkhir = $modalAwal + ($totalPendapatan - $totalBeban) - $totalPrive;
+        $totalPendapatan = $db->table('jurnal_umum ju')
+            ->join('akun a', 'a.id = ju.akun_id')
+            ->select('SUM(ju.kredit - ju.debit) as jumlah')
+            ->where('a.jenis_akun', 'pendapatan')
+            ->where('ju.tanggal <=', $tanggalAkhir)
+            ->get()->getRow()->jumlah ?? 0;
 
-        return $modalAkhir;
+        $totalBeban = $db->table('jurnal_umum ju')
+            ->join('akun a', 'a.id = ju.akun_id')
+            ->select('SUM(ju.debit - ju.kredit) as jumlah')
+            ->where('a.jenis_akun', 'beban')
+            ->where('ju.tanggal <=', $tanggalAkhir)
+            ->get()->getRow()->jumlah ?? 0;
+
+        $totalPrive = $db->table('jurnal_umum ju')
+            ->join('akun a', 'a.id = ju.akun_id')
+            ->select('SUM(ju.debit - ju.kredit) as jumlah')
+            ->where('a.kode_akun', '310')
+            ->where('ju.tanggal <=', $tanggalAkhir)
+            ->get()->getRow()->jumlah ?? 0;
+
+        $labaLalu = $totalPendapatan - $totalBeban;
+
+        return $modalAwal + $pengisianModal + $labaLalu - $totalPrive;
     }
 
+    public function getTambahanModalRange($awal, $akhir)
+    {
+        return $this->db->table('jurnal_umum')
+            ->join('akun', 'akun.id = jurnal_umum.akun_id')
+            ->where('akun.jenis_akun', 'ekuitas')
+            ->where('akun.nama_akun !=', 'Prive')
+            ->where("jurnal_umum.tanggal >=", $awal)
+            ->where("jurnal_umum.tanggal <=", $akhir)
+            ->selectSum('jurnal_umum.kredit') // asumsi tambahan modal masuk sisi kredit
+            ->get()->getRow()->kredit ?? 0;
+    }
 
     // app/Models/AkunModel.php
 
     public function getSaldoAkunNeracaGabungan()
     {
-        return $this->select('akun.id, akun.nama_akun, akun.jenis_akun, akun.tipe, akun.saldo_awal')
+        return $this->select('akun.id, akun.nama_akun, akun.jenis_akun, akun.tipe, akun.saldo')
             ->selectSum('jurnal_umum.debit', 'total_debit')
             ->selectSum('jurnal_umum.kredit', 'total_kredit')
             ->join('jurnal_umum', 'jurnal_umum.akun_id = akun.id', 'left')
@@ -294,7 +328,7 @@ class AkunModel extends Model
         $result = $builder->get()->getRowArray();
 
         $akun = $this->find($akunId);
-        $saldoAwal = $akun['saldo_awal'] ?? 0;
+        $saldoAwal = $akun['saldo'] ?? 0;
         $tipe = $akun['tipe'];
 
         return ($tipe == 'debit')
@@ -378,7 +412,7 @@ class AkunModel extends Model
         $akun = $this->where('kode_akun', $kode_akun)->first();
         if (!$akun) return false;
 
-        $field = $tipe === 'debit' ? 'saldo_awal' : 'saldo_awal';
+        $field = $tipe === 'debit' ? 'saldo' : 'saldo';
 
         if ($akun['tipe'] === $tipe) {
             $akun[$field] += $jumlah;
@@ -386,6 +420,38 @@ class AkunModel extends Model
             $akun[$field] -= $jumlah;
         }
 
-        return $this->update($akun['id'], ['saldo_awal' => $akun[$field]]);
+        return $this->update($akun['id'], ['saldo' => $akun[$field]]);
+    }
+    public function getDataEkuitas($startDate, $endDate)
+    {
+        return $this->db->table('jurnal_umum')
+            ->select('akun.kode_akun, akun.nama_akun, akun.jenis_akun, akun.tipe, SUM(jurnal_umum.debit) as total_debit, SUM(jurnal_umum.kredit) as total_kredit')
+            ->join('akun', 'akun.id = jurnal_umum.akun_id')
+            ->where('akun.jenis_akun', 'ekuitas')
+            ->where('jurnal_umum.tanggal >=', $startDate)
+            ->where('jurnal_umum.tanggal <=', $endDate)
+            ->groupBy('akun.kode_akun')
+            ->get()
+            ->getResultArray();
+    }
+
+    public function getSaldoAkunBerdasarkanJurnal($startDate, $endDate)
+    {
+        $db = \Config\Database::connect();
+
+        $builder = $db->table('jurnal_umum');
+        $builder->select('akun.kode_akun, akun.nama_akun, akun.jenis_akun, akun.tipe, akun.id as akun_id');
+        $builder->select('
+        SUM(IFNULL(jurnal_umum.debit, 0)) as total_debit,
+        SUM(IFNULL(jurnal_umum.kredit, 0)) as total_kredit
+    ');
+        $builder->join('akun', 'akun.id = jurnal_umum.akun_id');
+
+        // GUNAKAN hanya batas akhir, karena untuk neraca kita akumulasi sampai end_date
+        $builder->where('tanggal <=', $endDate);
+
+        $builder->groupBy('akun.id');
+
+        return $builder->get()->getResultArray();
     }
 }

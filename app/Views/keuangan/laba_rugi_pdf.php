@@ -39,7 +39,7 @@
     <h4>Pendapatan</h4>
     <table>
         <tr>
-            <th>Nama Akun</th>
+            <th>Pendapatan</th>
             <th>Jumlah (Rp)</th>
         </tr>
         <?php if (!empty($pendapatan)): ?>
@@ -63,7 +63,7 @@
     <h4>Beban</h4>
     <table>
         <tr>
-            <th>Nama Akun</th>
+            <th>Beban</th>
             <th>Jumlah (Rp)</th>
         </tr>
         <?php if (!empty($beban)): ?>

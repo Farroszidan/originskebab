@@ -73,21 +73,33 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($ekuitas as $index => $item): ?>
-                            <?php if ($item['keterangan'] === 'Total Ekuitas Akhir'): ?>
-                                <tr class="font-weight-bold">
-                                    <td><?= esc($item['keterangan']) ?></td>
-                                    <td class="text-right"><?= number_format($item['jumlah'], 0, ',', '.') ?></td>
-                                </tr>
-                            <?php else: ?>
-                                <tr>
-                                    <td><?= esc($item['keterangan']) ?></td>
-                                    <td class="text-right <?= $item['jumlah'] < 0 ? 'text-danger' : 'text-success' ?>">
-                                        <?= number_format($item['jumlah'], 0, ',', '.') ?>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
+                        <tr>
+                            <td>Modal Awal</td>
+                            <td class="text-right"><?= number_format($modal_awal, 0, ',', '.') ?></td>
+                        </tr>
+                        <tr>
+                            <td>Tambahan Modal</td>
+                            <td class="text-right <?= $tambahan_modal < 0 ? 'text-danger' : 'text-success' ?>">
+                                <?= number_format($tambahan_modal, 0, ',', '.') ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Laba Bersih</td>
+                            <td class="text-right <?= $laba_bersih < 0 ? 'text-danger' : 'text-success' ?>">
+                                <?= number_format($laba_bersih, 0, ',', '.') ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Prive</td>
+                            <td class="text-right <?= $prive < 0 ? 'text-danger' : 'text-success' ?>">
+                                <?= number_format($prive, 0, ',', '.') ?>
+                            </td>
+                        </tr>
+                        <tr class="font-weight-bold">
+                            <td>Modal Akhir</td>
+                            <td class="text-right"><?= number_format($modal_akhir, 0, ',', '.') ?></td>
+                        </tr>
+
                     </tbody>
                 </table>
             </div>

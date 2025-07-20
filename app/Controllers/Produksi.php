@@ -15,6 +15,8 @@ use App\Models\KomposisiBahanBSJModel;
 use App\Models\NotifikasiModel;
 use App\Models\OutletModel;
 use App\Models\AkunModel;
+use App\Models\KartuPersediaanModel;
+use App\Models\KartuPersediaanBSJModel;
 
 
 class Produksi extends BaseController
@@ -71,9 +73,7 @@ class Produksi extends BaseController
         ]);
     }
 
-
     public function simpanPembelian()
-
     {
         if (!in_groups(['admin', 'produksi'])) {
             return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
@@ -82,6 +82,8 @@ class Produksi extends BaseController
         $bahanModel           = new BahanModel();
         $detailPembelianModel = new DetailPembelianModel();
         $akunModel            = new AkunModel();
+        $kartuModel = new KartuPersediaanModel();
+        $transaksiModel = new \App\Models\TransaksiBahanModel();
 
         $tanggal    = $this->request->getPost('tanggal');
         $noNota     = $this->request->getPost('no_nota');
@@ -139,8 +141,48 @@ class Produksi extends BaseController
 
             // Update stok bahan hanya jika tunai
             if ($bahan && $jenisPembelian === 'tunai') {
+                $satuan = strtolower($bahan['satuan']);
+                $stokLama = $bahan['stok'];
+
+                // Konversi stok ke satuan tampil
+                $stokLamaTampil = $stokLama;
+                if ($satuan === 'kg' || $satuan === 'liter') {
+                    $stokLamaTampil = $stokLama / 1000;
+                }
+
+                // Konversi jumlah masuk (tambahan) ke satuan tampilan juga
+                $jumlahMasukTampil = $jumlah_db;
+                if ($satuan === 'kg' || $satuan === 'liter') {
+                    $jumlahMasukTampil = $jumlah_db / 1000;
+                }
+
+                // Tambah stok
+                $stokBaru = $stokLama + $jumlah_db;
+
+                // Hitung saldo berdasarkan satuan tampil × harga
+                $saldoBaru = ($stokLamaTampil + $jumlahMasukTampil) * $bahan['harga_satuan'];
+
+                // Simpan update stok dan saldo
                 $bahanModel->update($bahanId, [
-                    'stok' => $bahan['stok'] + $jumlah_db
+                    'stok' => $stokBaru,
+                    'saldo' => $saldoBaru
+                ]);
+
+                $transaksiModel->save([
+                    'id_bahan' => $bahanId,
+                    'tanggal' => $tanggal,
+                    'jenis' => 'masuk',
+                    'jumlah' => $jumlah_db,
+                    'satuan' => $bahan['satuan'],
+                    'keterangan' => 'Pembelian No. Nota: ' . $noNota,
+                ]);
+
+                $kartuModel->save([
+                    'bahan_id' => $bahanId,
+                    'tanggal' => $tanggal,
+                    'jenis' => 'masuk',
+                    'jumlah' => $jumlah_db,
+                    'keterangan' => 'Pembelian No. Nota: ' . $noNota,
                 ]);
             }
 
@@ -335,6 +377,8 @@ class Produksi extends BaseController
         $pembelianModel = new PembelianModel();
         $detailModel = new DetailPembelianModel();
         $bahanModel = new BahanModel();
+        $kartuModel = new KartuPersediaanModel();
+        $transaksiModel = new \App\Models\TransaksiBahanModel();
 
         $pembelian = $pembelianModel->find($id);
         if (!$pembelian) {
@@ -347,9 +391,41 @@ class Produksi extends BaseController
             foreach ($details as $d) {
                 $bahan = $bahanModel->find($d['bahan_id']);
                 if ($bahan) {
-                    // Tambah stok bahan
+                    $satuan = strtolower($bahan['satuan']);
+                    $jumlahMasuk = $d['jumlah'];
+
+                    // Konversi stok tampil
+                    $stokLama = $bahan['stok'];
+                    $stokTampilLama = ($satuan === 'kg' || $satuan === 'liter') ? $stokLama / 1000 : $stokLama;
+                    $jumlahMasukTampil = ($satuan === 'kg' || $satuan === 'liter') ? $jumlahMasuk / 1000 : $jumlahMasuk;
+
+                    // Hitung stok & saldo baru
+                    $stokBaru = $stokLama + $jumlahMasuk;
+                    $saldoBaru = ($stokTampilLama + $jumlahMasukTampil) * $bahan['harga_satuan'];
+
+                    // ✅ Update stok & saldo bahan
                     $bahanModel->update($bahan['id'], [
-                        'stok' => $bahan['stok'] + $d['jumlah']
+                        'stok' => $stokBaru,
+                        'saldo' => $saldoBaru
+                    ]);
+
+                    // ✅ Simpan ke kartu persediaan
+                    $kartuModel->save([
+                        'bahan_id'   => $bahan['id'],
+                        'tanggal'    => $pembelian['tanggal'],
+                        'jenis'      => 'masuk',
+                        'jumlah'     => $d['jumlah'],
+                        'keterangan' => 'Penerimaan Pembelian Kredit - No Nota: ' . $pembelian['no_nota']
+                    ]);
+
+                    // ✅ Simpan ke transaksi bahan
+                    $transaksiModel->save([
+                        'id_bahan'   => $bahan['id'],
+                        'tanggal'    => $pembelian['tanggal'],
+                        'jenis'      => 'masuk',
+                        'jumlah'     => $d['jumlah'],
+                        'satuan'     => $bahan['satuan'],
+                        'keterangan' => 'Penerimaan Pembelian Kredit - No Nota: ' . $pembelian['no_nota']
                     ]);
                 }
             }
@@ -359,7 +435,6 @@ class Produksi extends BaseController
         $pembelianModel->update($id, ['status_barang' => $status]);
         return redirect()->to(base_url('produksi/pembelian'))->with('success', 'Status pembelian berhasil diubah.');
     }
-
 
     //PERSEDIAAN
     //BAHAN MENTAH
@@ -398,6 +473,7 @@ class Produksi extends BaseController
         if (!in_groups(['admin', 'produksi'])) {
             return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
         }
+
         $bahanModel = new BahanModel();
         $kode = $this->request->getPost('kode');
 
@@ -406,23 +482,32 @@ class Produksi extends BaseController
             return redirect()->back()->withInput()->with('error', 'Kode sudah digunakan.');
         }
 
+        $nama = $this->request->getPost('nama');
+        $kategori = $this->request->getPost('kategori');
+        $jenis = $this->request->getPost('jenis');
         $satuan = strtolower($this->request->getPost('satuan'));
-        $stok = $this->request->getPost('stok');
-        // Konversi stok sesuai satuan
-        if ($satuan === 'kg') {
-            $stok = $stok * 1000; // simpan dalam gram
-        } elseif ($satuan === 'liter') {
-            $stok = $stok * 1000; // simpan dalam ml
-        } // pcs dan meter tetap
+        $stok_input = (float) $this->request->getPost('stok'); // nilai dari form
+        $harga = (float) $this->request->getPost('harga_satuan');
 
+        // Konversi stok sesuai satuan untuk disimpan
+        $stok_simpan = $stok_input;
+        if ($satuan === 'kg' || $satuan === 'liter') {
+            $stok_simpan = $stok_input * 1000;
+        }
+
+        // Hitung saldo berdasarkan input user (bukan stok yang dikonversi)
+        $saldo = $stok_input * $harga;
+
+        // Simpan data
         $bahanModel->save([
-            'kode' => $this->request->getPost('kode'),
-            'nama' => $this->request->getPost('nama'),
-            'kategori' => $this->request->getPost('kategori'),
-            'jenis' => $this->request->getPost('jenis'),
-            'stok' => $stok,
-            'satuan' => $this->request->getPost('satuan'),
-            'harga_satuan' => $this->request->getPost('harga_satuan'),
+            'kode' => $kode,
+            'nama' => $nama,
+            'kategori' => $kategori,
+            'jenis' => $jenis,
+            'stok' => $stok_simpan,
+            'satuan' => $satuan,
+            'harga_satuan' => $harga,
+            'saldo' => $saldo
         ]);
 
         return redirect()->to(base_url('produksi/persediaan'))->with('success', 'Data berhasil ditambahkan.');
@@ -456,8 +541,9 @@ class Produksi extends BaseController
         if (!in_groups(['admin', 'produksi'])) {
             return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
         }
+
         $bahanModel = new BahanModel();
-        $kode       = $this->request->getPost('kode');
+        $kode = $this->request->getPost('kode');
 
         // Cek apakah kode sudah digunakan oleh bahan lain
         if ($bahanModel->where('kode', $kode)->where('id !=', $id)->first()) {
@@ -465,22 +551,27 @@ class Produksi extends BaseController
         }
 
         $satuan = strtolower($this->request->getPost('satuan'));
-        $stok = $this->request->getPost('stok');
-        // Konversi stok sesuai satuan
-        if ($satuan === 'kg') {
-            $stok = $stok * 1000;
-        } elseif ($satuan === 'liter') {
-            $stok = $stok * 1000;
-        } // pcs dan meter tetap
+        $stok_input = (float) $this->request->getPost('stok');
+        $harga = (float) $this->request->getPost('harga_satuan');
+
+        // Simpan stok ke database (konversi)
+        $stok_simpan = $stok_input;
+        if ($satuan === 'kg' || $satuan === 'liter') {
+            $stok_simpan = $stok_input * 1000; // Simpan dalam gram/ml
+        }
+
+        // Hitung saldo berdasarkan tampilan user (bukan yang dikonversi)
+        $saldo = $stok_input * $harga;
 
         $bahanModel->update($id, [
-            'kode' => $this->request->getPost('kode'),
+            'kode' => $kode,
             'nama' => $this->request->getPost('nama'),
             'kategori' => $this->request->getPost('kategori'),
             'jenis' => $this->request->getPost('jenis'),
-            'stok' => $stok,
-            'satuan' => $this->request->getPost('satuan'),
-            'harga_satuan' => $this->request->getPost('harga_satuan'),
+            'stok' => $stok_simpan,
+            'satuan' => $satuan,
+            'harga_satuan' => $harga,
+            'saldo' => $saldo
         ]);
 
         return redirect()->to(base_url('produksi/persediaan'))->with('success', 'Data berhasil diperbarui.');
@@ -496,6 +587,7 @@ class Produksi extends BaseController
 
         return redirect()->to(base_url('produksi/persediaan'))->with('success', 'Data berhasil dihapus.');
     }
+
     //BSJ
     public function bsj()
     {
@@ -624,7 +716,6 @@ class Produksi extends BaseController
     }
 
     //PRODUKSI
-
     public function inputProduksi()
     {
         if (!in_groups(['admin', 'produksi'])) {
@@ -841,6 +932,8 @@ class Produksi extends BaseController
         $bsjModel = new \App\Models\BSJModel();
         $detailModel = new \App\Models\DetailProduksiModel();
         $bahanModel = new \App\Models\BahanModel();
+        $kartuModel = new \App\Models\KartuPersediaanModel();
+        $kartubsjModel = new KartuPersediaanBSJModel();
 
         $produksi = $produksiModel->find($id);
         if (!$produksi) {
@@ -851,11 +944,41 @@ class Produksi extends BaseController
         // Jika status draft -> proses: kurangi stok bahan
         if ($status == 'proses' && $produksi['status'] == 'draft') {
             $details = $detailModel->where('produksi_id', $id)->where('kategori', 'baku')->findAll();
+            $transaksiBahanModel = new \App\Models\TransaksiBahanModel();
             foreach ($details as $d) {
                 $bahan = $bahanModel->find($d['bahan_id']);
                 if ($bahan && $bahan['stok'] >= $d['jumlah']) {
+                    $jumlah = $d['jumlah'];
+                    $satuan = strtolower($bahan['satuan']);
+                    $hargaSatuan = $bahan['harga_satuan'];
+
+                    // Konversi untuk perhitungan saldo (karena stok disimpan dalam gram/ml)
+                    $jumlahTampil = ($satuan === 'kg' || $satuan === 'liter') ? $jumlah / 1000 : $jumlah;
+                    $stokBaru = $bahan['stok'] - $jumlah;
+                    $stokBaruTampil = ($satuan === 'kg' || $satuan === 'liter') ? $stokBaru / 1000 : $stokBaru;
+
+                    $saldoBaru = $stokBaruTampil * $hargaSatuan;
+
+                    // ✅ Update stok & saldo bahan
                     $bahanModel->update($d['bahan_id'], [
-                        'stok' => $bahan['stok'] - $d['jumlah']
+                        'stok' => $stokBaru,
+                        'saldo' => $saldoBaru
+                    ]);
+                    $kartuModel->save([
+                        'bahan_id'   => $bahan['id'],
+                        'tanggal'    => $produksi['tanggal'],
+                        'jenis'      => 'keluar',
+                        'jumlah'     => $d['jumlah'],
+                        'keterangan' => 'Produksi BSJ ID: ' . $produksi['id']
+                    ]);
+                    // Catat ke transaksi_bahan sebagai barang keluar
+                    $transaksiBahanModel->insert([
+                        'id_bahan' => $bahan['id'],
+                        'tanggal' => $produksi['tanggal'],
+                        'jenis' => 'keluar',
+                        'jumlah' => $d['jumlah'],
+                        'satuan' => $bahan['satuan'],
+                        'keterangan' => 'proses produksi'
                     ]);
                 } else {
                     return redirect()->back()->with('error', 'Stok bahan tidak cukup untuk: ' . ($bahan['nama'] ?? ''));
@@ -869,6 +992,14 @@ class Produksi extends BaseController
             if ($bsj) {
                 $bsjModel->update($bsj['id'], [
                     'stok' => $bsj['stok'] + $produksi['jumlah']
+                ]);
+                $kartubsjModel = new \App\Models\KartuPersediaanBSJModel();
+                $kartubsjModel->save([
+                    'bsj_id'     => $bsj['id'],
+                    'tanggal'    => date('Y-m-d'),
+                    'jenis'      => 'masuk',
+                    'jumlah'     => $produksi['jumlah'],
+                    'keterangan' => 'Hasil Produksi No: ' . $produksi['id']
                 ]);
             }
         }
@@ -1017,6 +1148,8 @@ class Produksi extends BaseController
         $outletId = $this->request->getPost('outlet_id');
         $barangData = $this->request->getPost('barang');
         $catatan = $this->request->getPost('catatan');
+        $kartubsjModel = new \App\Models\KartuPersediaanBSJModel();
+        $kartuModel = new \App\Models\KartuPersediaanModel();
 
         if (!$tanggal || !$outletId || !$barangData) {
             return redirect()->back()->with('error', 'Semua field harus diisi.');
@@ -1057,6 +1190,14 @@ class Produksi extends BaseController
                     $bsjModel->update($barangId, [
                         'stok' => $bsj['stok'] - $jumlah
                     ]);
+                    // Catat ke kartu persediaan BSJ
+                    $kartubsjModel->save([
+                        'bsj_id'     => $bsj['id'],
+                        'tanggal'    => date('Y-m-d'),
+                        'jenis'      => 'keluar',
+                        'jumlah'     => $jumlah,
+                        'keterangan' => 'Pengiriman No: ' . $pengirimanId
+                    ]);
                 } elseif ($tipe === 'bahan') {
                     $bahan = $bahanModel->find($barangId);
                     if (!$bahan || $bahan['stok'] < $jumlah) {
@@ -1064,8 +1205,28 @@ class Produksi extends BaseController
                         return redirect()->back()->with('error', 'Stok bahan tidak cukup.');
                     }
                     $namaBarang = $bahan['nama'];
+                    $satuan = strtolower($bahan['satuan']);
+                    $hargaSatuan = $bahan['harga_satuan'];
+
+                    // Hitung stok baru
+                    $stokBaru = $bahan['stok'] - $jumlah;
+
+                    // Hitung saldo baru dengan konversi tampilan
+                    $stokBaruTampil = ($satuan === 'kg' || $satuan === 'liter') ? $stokBaru / 1000 : $stokBaru;
+                    $saldoBaru = $stokBaruTampil * $hargaSatuan;
+
+                    // ✅ Update stok dan saldo bahan
                     $bahanModel->update($barangId, [
-                        'stok' => $bahan['stok'] - $jumlah
+                        'stok' => $stokBaru,
+                        'saldo' => $saldoBaru
+                    ]);
+                    // Catat ke kartu persediaan bahan
+                    $kartuModel->save([
+                        'bahan_id'   => $bahan['id'],
+                        'tanggal'    => date('Y-m-d'),
+                        'jenis'      => 'keluar',
+                        'jumlah'     => $jumlah,
+                        'keterangan' => 'Pengiriman No: ' . $pengirimanId
                     ]);
                 } else {
                     $db->transRollback();
@@ -1166,48 +1327,256 @@ class Produksi extends BaseController
             return redirect()->back()->with('error', 'Gagal menghapus pengiriman: ' . $e->getMessage());
         }
     }
-    // ========== LAPORAN ==========
-    public function laporanIndex()
+    // FORM KARTU PERSEDIAAN BAHAN
+    public function kartuPersediaanBahan()
     {
-        if (!in_groups('produksi')) {
+        if (!in_groups(['admin', 'produksi'])) {
             return redirect()->to('login');
         }
-        $data['tittle'] = 'Laporan Produksi';
-        return view('produksi/laporan/index', $data);
+
+        $bahanModel = new \App\Models\BahanModel();
+        $kartuModel = new \App\Models\KartuPersediaanModel();
+
+        $bahan = $bahanModel->findAll();
+        $bahanId = $this->request->getGet('bahan_id');
+        $rawData = $kartuModel
+            ->where('bahan_id', $bahanId)
+            ->orderBy('tanggal', 'ASC')
+            ->findAll();
+
+        $saldo_qty = 0;
+        $saldo_harga = 0;
+        $kartu = [];
+        $harga_satuan = 0;
+        $satuan = '';
+        if ($bahanId) {
+            $bahanData = $bahanModel->find($bahanId);
+            $harga_satuan = $bahanData['harga_satuan'] ?? 0;
+            $satuan = strtolower($bahanData['satuan'] ?? '');
+        }
+
+        foreach ($rawData as $item) {
+            // Selalu bagi jumlah di database dengan 1000
+            // Bagi 1000 hanya jika satuan adalah kg atau liter
+            if (in_array($satuan, ['kg', 'liter'])) {
+                $jumlah_db = $item['jumlah'] / 1000;
+            } else {
+                $jumlah_db = $item['jumlah'];
+            }
+            $masuk_qty = $item['jenis'] === 'masuk' ? $jumlah_db : 0;
+            $keluar_qty = $item['jenis'] === 'keluar' ? $jumlah_db : 0;
+            $harga = $harga_satuan;
+            if ($item['jenis'] === 'masuk') {
+                $saldo_qty += $masuk_qty;
+                $saldo_harga += $masuk_qty * $harga;
+            } else {
+                $saldo_qty -= $keluar_qty;
+                $saldo_harga -= $keluar_qty * $harga;
+            }
+            $kartu[] = [
+                'tanggal' => $item['tanggal'],
+                'keterangan' => $item['keterangan'],
+                'jenis' => $item['jenis'],
+                'jumlah' => $item['jumlah'],
+                'harga_satuan' => $harga,
+                'saldo_qty' => $saldo_qty,
+                'saldo_harga' => $saldo_harga,
+                'masuk_qty' => $masuk_qty,
+                'keluar_qty' => $keluar_qty,
+                'satuan' => $satuan,
+            ];
+        }
+
+        return view('produksi/persediaan/kartu/bahan', [
+            'tittle' => 'Kartu Persediaan Bahan',
+            'bahan' => $bahan,
+            'kartu' => $kartu,
+            'bahanId' => $bahanId
+        ]);
     }
 
+    // FORM KARTU PERSEDIAAN BSJ
+    public function kartuPersediaanBSJ()
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+
+        $bsjModel = new \App\Models\BSJModel();
+        $kartuModel = new \App\Models\KartuPersediaanBSJModel();
+
+        $bsj = $bsjModel->findAll();
+        $kartu = [];
+
+        $bsjId = $this->request->getGet('bsj_id');
+        $tanggalMulai = $this->request->getGet('tanggal_mulai');
+        $tanggalSelesai = $this->request->getGet('tanggal_selesai');
+
+        if ($bsjId && $tanggalMulai && $tanggalSelesai) {
+            $kartu = $kartuModel
+                ->select('tanggal, jenis, jumlah, harga_satuan, keterangan')
+                ->where('bsj_id', $bsjId)
+                ->where('tanggal >=', $tanggalMulai)
+                ->where('tanggal <=', $tanggalSelesai)
+                ->orderBy('tanggal', 'ASC')
+                ->findAll();
+
+            // Hitung masuk, keluar, dan saldo secara manual
+            $saldo = 0;
+            foreach ($kartu as &$row) {
+                $row['masuk_qty']  = ($row['jenis'] === 'masuk') ? $row['jumlah'] : 0;
+                $row['keluar_qty'] = ($row['jenis'] === 'keluar') ? $row['jumlah'] : 0;
+                $row['saldo_qty']  = $saldo = $saldo + $row['masuk_qty'] - $row['keluar_qty'];
+                $row['harga_satuan'] = $row['harga_satuan'] ?? 0;
+            }
+        }
+
+        return view('produksi/persediaan/kartu/bsj', [
+            'tittle' => 'Kartu Persediaan BSJ',
+            'bsj' => $bsj,
+            'kartu' => $kartu,
+            'tanggalMulai' => $tanggalMulai,
+            'tanggalSelesai' => $tanggalSelesai,
+            'bsjId' => $bsjId
+        ]);
+    }
+
+    // ========== LAPORAN ==========
+    public function formCetakPembelian()
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+        return view('produksi/laporan/form_filter_pembelian', [
+            'tittle' => 'Form Cetak Laporan Pembelian'
+        ]);
+    }
     public function cetakPembelian()
     {
-        // TODO: Implementasi cetak laporan pembelian
-        $tittle = 'Laporan Pembelian';
-        return view('produksi/laporan/cetak_pembelian', compact('tittle'));
-    }
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
 
-    public function cetakProduksi()
+        $start = $this->request->getGet('tanggal_awal') ?? date('Y-m-01');
+        $end = $this->request->getGet('tanggal_akhir') ?? date('Y-m-d');
+
+
+        $pembelianModel = new \App\Models\PembelianModel();
+        $pemasokModel = new \App\Models\PemasokModel();
+
+        $dataPembelian = $pembelianModel
+            ->select('pembelian.*, pemasok.nama as nama_pemasok')
+            ->join('pemasok', 'pemasok.id = pembelian.pemasok_id', 'left')
+            ->where('pembelian.tanggal >=', $start)
+            ->where('pembelian.tanggal <=', $end)
+            ->orderBy('pembelian.tanggal', 'ASC')
+            ->findAll();
+
+        // Pastikan field yang digunakan di view tersedia
+        $pembelian = [];
+        foreach ($dataPembelian as $row) {
+            $row['jenis_pembayaran'] = $row['jenis_pembelian'] ?? '-';
+            $pembelian[] = $row;
+        }
+
+        return view('produksi/laporan/cetak_pembelian', [
+            'pembelian' => $pembelian,
+            'start' => $start,
+            'end' => $end,
+        ]);
+    }
+    public function formCetakPersediaanBahan()
     {
-        // TODO: Implementasi cetak laporan produksi
-        $tittle = 'Laporan Produksi';
-        return view('produksi/laporan/cetak_produksi', compact('tittle'));
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+        return view('produksi/laporan/form_filter_persediaan_bahan', [
+            'tittle' => 'Form Cetak Laporan Persediaan Bahan'
+        ]);
     }
-
     public function cetakPersediaanBahan()
     {
-        // TODO: Implementasi cetak laporan persediaan bahan
-        $tittle = 'Laporan Persediaan Bahan';
-        return view('produksi/laporan/cetak_persediaan_bahan', compact('tittle'));
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+
+        $start = $this->request->getGet('tanggal_awal') ?? date('Y-m-01');
+        $end   = $this->request->getGet('tanggal_akhir') ?? date('Y-m-d');
+
+        $bahanModel = new \App\Models\BahanModel();
+        $kartuModel = new \App\Models\KartuPersediaanModel();
+
+        $bahan = $bahanModel->findAll();
+
+        // Ambil semua pergerakan kartu persediaan dalam rentang waktu
+        $kartu = $kartuModel
+            ->where('tanggal >=', $start)
+            ->where('tanggal <=', $end)
+            ->orderBy('tanggal', 'ASC')
+            ->findAll();
+
+        return view('produksi/laporan/cetak_persediaan_bahan', [
+            'tittle' => 'Laporan Persediaan Bahan',
+            'start' => $start,
+            'end' => $end,
+            'bahan' => $bahan,
+            'kartu' => $kartu,
+        ]);
     }
 
     public function cetakPersediaanBSJ()
     {
-        // TODO: Implementasi cetak laporan persediaan BSJ
         $tittle = 'Laporan Persediaan BSJ';
-        return view('produksi/laporan/cetak_persediaan_bsj', compact('tittle'));
+        $bsjModel = new \App\Models\BSJModel();
+        $kartuModel = new \App\Models\KartuPersediaanBSJModel();
+        $tanggalMulai = $this->request->getGet('tanggal_mulai');
+        $tanggalSelesai = $this->request->getGet('tanggal_selesai');
+        $builder = $bsjModel->select('bsj.id, bsj.kode, bsj.nama, bsj.stok, bsj.satuan');
+        if ($tanggalMulai && $tanggalSelesai) {
+            $builder->selectSum("CASE WHEN kp.jenis = 'masuk' THEN kp.jumlah ELSE 0 END", 'masuk');
+            $builder->selectSum("CASE WHEN kp.jenis = 'keluar' THEN kp.jumlah ELSE 0 END", 'keluar');
+            $builder->join('kartu_persediaan_bsj kp', 'kp.bsj_id = bsj.id', 'left')
+                ->where('kp.tanggal >=', $tanggalMulai)
+                ->where('kp.tanggal <=', $tanggalSelesai)
+                ->groupBy('bsj.id');
+        }
+        $bsj = $builder->findAll();
+        return view('produksi/laporan/cetak_persediaan_bsj', compact('tittle', 'bsj', 'tanggalMulai', 'tanggalSelesai'));
     }
-
-    public function cetakPengiriman()
+    public function formCetakProduksi()
     {
-        // TODO: Implementasi cetak laporan pengiriman
-        $tittle = 'Laporan Pengiriman';
-        return view('produksi/laporan/cetak_pengiriman', compact('tittle'));
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+        return view('produksi/laporan/form_filter_produksi', [
+            'tittle' => 'Form Cetak Laporan Produksi'
+        ]);
+    }
+    public function cetakProduksi()
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+
+        $start = $this->request->getGet('start') ?? date('Y-m-01');
+        $end = $this->request->getGet('end') ?? date('Y-m-d');
+
+        $produksiModel = new \App\Models\ProduksiModel();
+        $bsjModel = new \App\Models\BSJModel();
+
+        $data = $produksiModel
+            ->select('produksi.*, bsj.nama as nama_bsj')
+            ->join('bsj', 'bsj.id = produksi.bsj_id', 'left')
+            ->where('produksi.tanggal >=', $start)
+            ->where('produksi.tanggal <=', $end)
+            ->orderBy('produksi.tanggal', 'ASC')
+            ->findAll();
+
+        return view('produksi/laporan/cetak_produksi', [
+            'tittle' => 'Laporan Produksi',
+            'produksi' => $data,
+            'start' => $start,
+            'end' => $end,
+        ]);
     }
 }
