@@ -61,6 +61,13 @@
             </tr>
         </tfoot>
     </table>
+    <div class="total-keterangan">
+        Total piutang periode ini: Rp <?= number_format($total_piutang, 2, ',', '.') ?>
+    </div>
+
+    <p style="text-align: left; font-size: 11px;">
+        Dicetak pada: <?= $timestamp ?>
+    </p>
 </body>
 
 </html>

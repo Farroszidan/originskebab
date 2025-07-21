@@ -192,8 +192,9 @@ $routes->post('keuangan/simpan_pelunasan_utang', 'Keuangan::simpanPelunasanUtang
 $routes->get('keuangan/form_pelunasan_piutang/(:segment)', 'Keuangan::formPelunasanPiutang/$1');
 $routes->post('keuangan/simpan_pelunasan_piutang', 'Keuangan::simpanPelunasanPiutang');
 $routes->add('/keuangan/laba_rugi', 'Keuangan::laba_rugi', ['filter' => 'role:keuangan']); // menampilkan laporan laba rugi
-$routes->get('keuangan/laba_rugi/pdf', 'Keuangan::exportLabaRugiPDF'); //ekspor PDF laba rugi
-$routes->get('keuangan/laporan_perubahan_ekuitas', 'Keuangan::laporanPerubahanEkuitas');
+$routes->get('keuangan/laba_rugi/pdf', 'Keuangan::exportLabaRugiPDF'); //ekspor PDF laba rugi$routes->get('keuangan/laporanPerubahanEkuitas', 'Keuangan::laporanPerubahanEkuitas');
+$routes->get('keuangan/laporan_perubahan_ekuitas', 'Keuangan::laporanPerubahanEkuitas', ['filter' => 'role:keuangan']);
+
 $routes->get('keuangan/perubahan_ekuitas_pdf', 'Keuangan::exportPerubahanEkuitasPDF');
 $routes->get('keuangan/laporan_neraca', 'Keuangan::laporanNeraca');
 $routes->get('keuangan/exportNeracaPDF', 'Keuangan::exportNeracaPDF');

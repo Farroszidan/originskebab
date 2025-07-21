@@ -14,7 +14,7 @@
     <div class="card shadow-sm">
         <div class="card-body">
             <?php if ($jenis === 'permintaan'): ?>
-                <p><strong>Tanggal:</strong> <?= esc($data['tanggal']) ?></p>
+                <p><strong>Tanggal:</strong> <?= esc(date('d-m-Y', strtotime($data['tanggal']))) ?></p>
                 <p><strong>Catatan:</strong> <?= esc($data['catatan']) ?></p>
 
                 <?php if (!empty($detail)): ?>
@@ -25,7 +25,6 @@
                                     <th>No</th>
                                     <th>Nama Barang</th>
                                     <th>Jumlah</th>
-                                    <th>Tanggal Input</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -34,7 +33,6 @@
                                         <td><?= $i + 1 ?></td>
                                         <td><?= esc($item['nama'] ?? '-') ?></td>
                                         <td><?= esc($item['jumlah'] ?? '0') . ' ' . esc($item['satuan'] ?? '') ?></td>
-                                        <td><?= isset($item['created_at']) ? date('d-m-Y H:i', strtotime($item['created_at'])) : '-' ?></td>
                                     </tr>
                                 <?php endforeach ?>
                             </tbody>
@@ -45,9 +43,33 @@
                 <?php endif; ?>
 
             <?php elseif ($jenis === 'pengiriman'): ?>
-                <p><strong>Tanggal:</strong> <?= esc($data['tanggal']) ?></p>
-                <p><strong>Jumlah:</strong> <?= esc($data['jumlah']) ?></p>
-                <p><strong>Catatan:</strong> <?= esc($data['catatan']) ?></p>
+                <h6 class="text-warning">Detail Pengiriman</h6>
+                <p><strong>Tanggal:</strong> <?= date('d-m-Y', strtotime($data['tanggal'])) ?></p>
+
+                <p><strong>Catatan:</strong> <?= $data['catatan'] ?></p>
+
+                <?php if (!empty($detail)): ?>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Nama Barang</th>
+                                <th>Satuan</th>
+                                <th>Jumlah</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($detail as $item): ?>
+                                <tr>
+                                    <td><?= $item['nama_barang'] ?></td>
+                                    <td><?= $item['jumlah'] ?></td>
+                                    <td><?= $item['satuan'] ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <p class="text-danger">Tidak ada detail pengiriman.</p>
+                <?php endif; ?>
 
             <?php elseif ($jenis === 'bukti_pembelian'): ?>
                 <p><strong>Tanggal:</strong> <?= esc($data['tanggal']) ?></p>

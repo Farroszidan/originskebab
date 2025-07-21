@@ -65,7 +65,7 @@ class Dashboard extends BaseController
 
             // Ambil saldo kas (uang laci) semua outlet dari tabel akun
             $kas_outlet_admin = $akunModel
-                ->select('akun.saldo_awal, akun.nama_akun, outlet.nama_outlet')
+                ->select('akun.saldo, akun.nama_akun, outlet.nama_outlet')
                 ->join('outlet', 'outlet.id = akun.kas_outlet_id', 'left')
                 ->where('akun.jenis_akun', 'Aset')
                 ->where('akun.kas_outlet_id IS NOT NULL', null, false)
@@ -94,7 +94,7 @@ class Dashboard extends BaseController
                 ->first();
 
             $kasOutlet = $akunModel
-                ->select('akun.saldo_awal, akun.nama_akun, outlet.nama_outlet')
+                ->select('akun.saldo, akun.nama_akun, outlet.nama_outlet')
                 ->join('outlet', 'outlet.id = akun.kas_outlet_id', 'left')
                 ->where('akun.jenis_akun', 'Aset')
                 ->where('akun.kas_outlet_id', $outlet_id)
@@ -107,7 +107,7 @@ class Dashboard extends BaseController
         // Role keuangan
         if ($role === 'keuangan') {
             $kas_outlet = $akunModel
-                ->select('akun.saldo_awal, akun.kode_akun, akun.nama_akun, outlet.nama_outlet')
+                ->select('akun.saldo, akun.kode_akun, akun.nama_akun, outlet.nama_outlet')
                 ->join('outlet', 'outlet.id = akun.kas_outlet_id', 'left')
                 ->where('akun.jenis_akun', 'Aset')
                 ->where('akun.kas_outlet_id IS NOT NULL', null, false)

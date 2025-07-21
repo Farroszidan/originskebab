@@ -32,15 +32,43 @@ class Keuangan extends BaseController
 
         $db = \Config\Database::connect();
 
-        // Update hanya untuk akun Aset yang berelasi dengan outlet
-        $db->query("
-        UPDATE akun 
-        SET saldo = saldo + ? 
-        WHERE kas_outlet_id = ? AND jenis_akun = 'Aset'
-    ", [$jumlah, $outlet_id]);
+        // Ambil akun kas utama (kode 101)
+        $akunKasUtama = $db->table('akun')->where('kode_akun', '101')->get()->getRow();
+
+        // Ambil akun kas outlet berdasarkan outlet_id
+        $akunKasOutlet = $db->table('akun')->where('kas_outlet_id', $outlet_id)->get()->getRow();
+
+        if (!$akunKasUtama || !$akunKasOutlet) {
+            return redirect()->back()->with('error', 'Akun kas tidak ditemukan.');
+        }
+
+        // Simpan ke jurnal umum sebagai transaksi double-entry
+        $db->table('jurnal_umum')->insertBatch([
+            [
+                'tanggal' => date('Y-m-d'),
+                'keterangan' => 'Isi Kas Outlet',
+                'akun_id' => $akunKasOutlet->id,
+                'debit' => $jumlah,
+                'kredit' => 0,
+            ],
+            [
+                'tanggal' => date('Y-m-d'),
+                'keterangan' => 'Isi Kas Outlet', // <- disamakan
+                'akun_id' => $akunKasUtama->id,
+                'debit' => 0,
+                'kredit' => $jumlah,
+            ]
+        ]);
+
+        // 3. Update saldo akun
+        $db->query("UPDATE akun SET saldo = saldo + ? WHERE kode_akun = ?", [$jumlah, $akunKasOutlet->kode_akun]);
+        $db->query("UPDATE akun SET saldo = saldo - ? WHERE kode_akun = ?", [$jumlah, $akunKasUtama->kode_akun]);
+
+        $db->transComplete(); // Selesai transaksi
 
         return redirect()->to('/dashboard')->with('success', 'Kas outlet berhasil diisi.');
     }
+
 
     public function index_jurnal()
     {
@@ -252,90 +280,39 @@ class Keuangan extends BaseController
 
     public function neraca_saldo()
     {
-        if (!in_groups('keuangan')) {
-            return redirect()->to('login');
-        }
-
         $db = \Config\Database::connect();
 
-        // Ambil filter bulan & tahun dari GET
         $bulan = $this->request->getGet('bulan') ?? date('n');
         $tahun = $this->request->getGet('tahun') ?? date('Y');
 
-        // Ambil semua akun dan urutkan berdasarkan kode akun
-        $akun = $db->table('akun')
-            ->orderBy('kode_akun', 'ASC')
-            ->get()
-            ->getResultArray();
+        $builder = $db->table('akun');
+        $builder->select('akun.kode_akun, akun.nama_akun, akun.tipe, akun.jenis_akun, 
+                      SUM(IF(MONTH(jurnal_umum.tanggal) = ' . $bulan . ' AND YEAR(jurnal_umum.tanggal) = ' . $tahun . ', jurnal_umum.debit, 0)) as total_debit,
+                      SUM(IF(MONTH(jurnal_umum.tanggal) = ' . $bulan . ' AND YEAR(jurnal_umum.tanggal) = ' . $tahun . ', jurnal_umum.kredit, 0)) as total_kredit');
+        $builder->join('jurnal_umum', 'jurnal_umum.akun_id = akun.id', 'left');
+        $builder->groupBy('akun.id');
+        $builder->orderBy('akun.kode_akun');
 
-        $akun_saldo = [];
+        $query = $builder->get();
+        $akun = $query->getResultArray();
+
+        // Hitung saldo dan total
         $total_debet = 0;
         $total_kredit = 0;
 
-        // Periode
-        $awalBulan = "$tahun-" . str_pad($bulan, 2, '0', STR_PAD_LEFT) . "-01";
-        $awalBulanBerikut = date('Y-m-d', strtotime('+1 month', strtotime($awalBulan)));
-        // Periode sampai akhir bulan sebelumnya
-        $bulanSebelumnya = $bulan - 1;
-        $tahunSebelumnya = $tahun;
-        if ($bulanSebelumnya == 0) {
-            $bulanSebelumnya = 12;
-            $tahunSebelumnya--;
-        }
-        $akhirBulanSebelumnya = date('Y-m-t', strtotime($tahunSebelumnya . '-' . $bulanSebelumnya . '-01'));
-
-        foreach ($akun as $a) {
-            // Hitung saldo hingga akhir bulan sebelumnya
-            $jurnalSebelum = $db->table('jurnal_umum')
-                ->selectSum('debit')
-                ->selectSum('kredit')
-                ->where('akun_id', $a['id'])
-                ->where('tanggal <', $awalBulan)
-                ->get()->getRow();
-            $debitSebelum = $jurnalSebelum->debit ?? 0;
-            $kreditSebelum = $jurnalSebelum->kredit ?? 0;
-
-            if ($a['tipe'] === 'debit') {
-                $saldo_awal_periode = $debitSebelum - $kreditSebelum;
-            } else {
-                $saldo_awal_periode = $kreditSebelum - $debitSebelum;
-            }
-
-            // Mutasi bulan berjalan
-            $jurnalBulanIni = $db->table('jurnal_umum')
-                ->selectSum('debit')
-                ->selectSum('kredit')
-                ->where('akun_id', $a['id'])
-                ->where('tanggal >=', $awalBulan)
-                ->where('tanggal <', $awalBulanBerikut)
-                ->get()->getRow();
-            $debitBulanIni = $jurnalBulanIni->debit ?? 0;
-            $kreditBulanIni = $jurnalBulanIni->kredit ?? 0;
-
-            // Saldo akhir periode
-            if ($a['tipe'] === 'debit') {
-                $saldo = $saldo_awal_periode + $debitBulanIni - $kreditBulanIni;
-                $total_debet += $saldo;
-            } else {
-                $saldo = $saldo_awal_periode - $debitBulanIni + $kreditBulanIni;
-                $total_kredit += $saldo;
-            }
-
-            $akun_saldo[] = [
-                'kode_akun' => $a['kode_akun'],
-                'nama_akun' => $a['nama_akun'],
-                'tipe'      => $a['tipe'],
-                'saldo'     => $saldo
-            ];
+        foreach ($akun as &$a) {
+            $a['saldo'] = ($a['tipe'] === 'debit') ? ($a['total_debit'] - $a['total_kredit']) : ($a['total_kredit'] - $a['total_debit']);
+            $total_debet += ($a['tipe'] === 'debit') ? $a['saldo'] : 0;
+            $total_kredit += ($a['tipe'] === 'kredit') ? $a['saldo'] : 0;
         }
 
         $data = [
-            'tittle'         => 'Neraca Saldo',
-            'akun'           => $akun_saldo,
-            'total_debet'    => $total_debet,
-            'total_kredit'   => $total_kredit,
-            'bulan'          => $bulan,
-            'tahun'          => $tahun,
+            'akun' => $akun,
+            'bulan' => $bulan,
+            'tahun' => $tahun,
+            'total_debet' => $total_debet,
+            'total_kredit' => $total_kredit,
+            'tittle' => 'Laporan Neraca Saldo'
         ];
 
         return view('keuangan/neraca_saldo', $data);
@@ -348,17 +325,17 @@ class Keuangan extends BaseController
         $end = $this->request->getGet('end_date') ?? date('Y-m-t');
 
         $query = $db->query("
-    SELECT p.nama AS nama_supplier, a.nama_akun, a.kode_akun,
-           SUM(j.kredit - j.debit) AS jumlah
-    FROM jurnal_umum j
-    JOIN akun a ON a.id = j.akun_id
-    JOIN pemasok p ON p.id = j.supplier_id
-    WHERE a.jenis_akun = 'kewajiban'
-      AND j.tanggal BETWEEN '$start' AND '$end'
-      AND j.supplier_id IS NOT NULL
-    GROUP BY p.id, a.id
-    HAVING jumlah != 0
-    ");
+        SELECT p.nama AS nama_supplier, a.nama_akun, a.kode_akun,
+            SUM(j.kredit - j.debit) AS jumlah
+        FROM jurnal_umum j
+        JOIN akun a ON a.id = j.akun_id
+        JOIN pemasok p ON p.id = j.supplier_id
+        WHERE a.jenis_akun = 'kewajiban'
+        AND j.tanggal BETWEEN '$start' AND '$end'
+        AND j.supplier_id IS NOT NULL
+        GROUP BY p.id, a.id
+        HAVING jumlah != 0
+        ");
 
         $utang = $query->getResultArray();
 
@@ -448,6 +425,8 @@ class Keuangan extends BaseController
         $db = \Config\Database::connect();
         $start = $this->request->getGet('start_date') ?? date('Y-m-01');
         $end = $this->request->getGet('end_date') ?? date('Y-m-t');
+        $currentTimestamp = date('d M Y, H:i') . ' WIB';
+
 
         $query = $db->query("
         SELECT
@@ -463,7 +442,7 @@ class Keuangan extends BaseController
         GROUP BY p.id, a.nama_akun
         HAVING jumlah != 0
         ORDER BY a.nama_akun
-    ");
+        ");
 
         $utang = $query->getResultArray();
 
@@ -476,7 +455,8 @@ class Keuangan extends BaseController
             'utang' => $utang,
             'start' => $start,
             'end' => $end,
-            'total_utang' => $total
+            'total_utang' => $total,
+            'timestamp' => $currentTimestamp
         ];
 
         $html = view('keuangan/pdf_utang', $data);
@@ -502,29 +482,19 @@ class Keuangan extends BaseController
             $start = date('Y-m-01');
             $end = date('Y-m-t');
         }
-        $kode_piutang = ['110', '111', '112', '113']; // sesuaikan jika perlu
-        $kode_piutang_in = "'" . implode("','", $kode_piutang) . "'";
 
-        $query = $db->query("
-    SELECT 
-        akun.kode_akun,
-        akun.nama_akun,
-        SUM(jurnal_umum.debit) AS total_debit,
-        SUM(jurnal_umum.kredit) AS total_kredit
-    FROM jurnal_umum
-    JOIN akun ON akun.id = jurnal_umum.akun_id
-    WHERE akun.kode_akun IN ($kode_piutang_in)
-    AND jurnal_umum.tanggal BETWEEN '$start' AND '$end'
-    GROUP BY akun.kode_akun, akun.nama_akun
-    HAVING SUM(jurnal_umum.debit) - SUM(jurnal_umum.kredit) != 0
-    ORDER BY akun.nama_akun ASC
-    ");
-
-        $piutang = $query->getResultArray();
+        // Ambil dari tabel akun saja
+        $kode_piutang = ['110', '111', '112', '113'];
+        $piutang = $db->table('akun')
+            ->select('kode_akun, nama_akun, saldo')
+            ->whereIn('kode_akun', $kode_piutang)
+            ->where('saldo !=', 0)
+            ->orderBy('nama_akun', 'ASC')
+            ->get()->getResultArray();
 
         $total_piutang = 0;
         foreach ($piutang as &$row) {
-            $row['jumlah'] = $row['total_debit'] - $row['total_kredit'];
+            $row['jumlah'] = floatval($row['saldo']);
             $total_piutang += $row['jumlah'];
         }
 
@@ -556,26 +526,26 @@ class Keuangan extends BaseController
     public function simpanPelunasanPiutang()
     {
         $db = \Config\Database::connect();
+        $akunBuilder = $db->table('akun');
 
-        $kode_akun_piutang = $this->request->getPost('kode_akun'); // ini kode akun piutang
+        $kode_akun_piutang = $this->request->getPost('kode_akun'); // kode akun piutang
         $tanggal = $this->request->getPost('tanggal');
-        $nominal = $this->request->getPost('nominal');
+        $nominal = (float) $this->request->getPost('nominal');
         $keterangan = $this->request->getPost('keterangan');
 
         if (!$kode_akun_piutang || !$tanggal || !$nominal) {
             return redirect()->back()->with('error', 'Semua field wajib diisi.');
         }
 
-        // Ambil ID akun piutang berdasarkan kode_akun
-        $akunPiutang = $db->table('akun')->where('kode_akun', $kode_akun_piutang)->get()->getRow();
-        // Ambil ID akun kas (anggap kode akun kas = 101)
-        $akunKas = $db->table('akun')->where('kode_akun', '101')->get()->getRow();
+        // Ambil data akun
+        $akunPiutang = $akunBuilder->where('kode_akun', $kode_akun_piutang)->get()->getRow();
+        $akunKas = $akunBuilder->where('kode_akun', '101')->get()->getRow(); // akun kas
 
         if (!$akunPiutang || !$akunKas) {
             return redirect()->back()->with('error', 'Akun tidak ditemukan.');
         }
 
-        // Simpan jurnal pelunasan: Kas (debit), Piutang (kredit)
+        // Simpan ke jurnal_umum
         $db->table('jurnal_umum')->insertBatch([
             [
                 'tanggal' => $tanggal,
@@ -593,6 +563,28 @@ class Keuangan extends BaseController
             ]
         ]);
 
+        // Update saldo akun Kas
+        if ($akunKas->tipe == 'debit') {
+            $akunBuilder->set('saldo', 'saldo + ' . $nominal, false)
+                ->where('id', $akunKas->id)
+                ->update();
+        } else {
+            $akunBuilder->set('saldo', 'saldo - ' . $nominal, false)
+                ->where('id', $akunKas->id)
+                ->update();
+        }
+
+        // Update saldo akun Piutang
+        if ($akunPiutang->tipe == 'kredit') {
+            $akunBuilder->set('saldo', 'saldo + ' . $nominal, false)
+                ->where('id', $akunPiutang->id)
+                ->update();
+        } else {
+            $akunBuilder->set('saldo', 'saldo - ' . $nominal, false)
+                ->where('id', $akunPiutang->id)
+                ->update();
+        }
+
         return redirect()->to(base_url('keuangan/laporan_piutang'))->with('success', 'Pelunasan piutang berhasil disimpan.');
     }
 
@@ -601,47 +593,42 @@ class Keuangan extends BaseController
         $db = \Config\Database::connect();
         $start = $this->request->getGet('start_date') ?? date('Y-m-01');
         $end = $this->request->getGet('end_date') ?? date('Y-m-t');
+        $currentTimestamp = date('d M Y, H:i') . ' WIB';
 
-        $query = $db->query("
-        SELECT akun.nama_akun, akun.kode_akun,
-               SUM(jurnal_umum.debit) AS total_debit,
-               SUM(jurnal_umum.kredit) AS total_kredit
-        FROM jurnal_umum
-        JOIN akun ON akun.id = jurnal_umum.akun_id
-        WHERE akun.jenis_akun = 'aset'
-        AND akun.nama_akun LIKE '%Piutang%'
-        AND jurnal_umum.tanggal BETWEEN '$start' AND '$end'
-        GROUP BY akun.nama_akun, akun.kode_akun
-        HAVING total_debit - total_kredit != 0
-        ORDER BY akun.nama_akun
-    ");
+        // Ambil data dari tabel akun, sesuai dengan view laporanPiutang()
+        $kode_piutang = ['110', '111', '112', '113'];
+        $piutang = $db->table('akun')
+            ->select('kode_akun, nama_akun, saldo')
+            ->whereIn('kode_akun', $kode_piutang)
+            ->where('saldo !=', 0)
+            ->orderBy('nama_akun', 'ASC')
+            ->get()->getResultArray();
 
-        $piutang = $query->getResultArray();
-        $total = 0;
+        $total_piutang = 0;
         foreach ($piutang as &$row) {
-            $row['jumlah'] = $row['total_debit'] - $row['total_kredit'];
-            $total += $row['jumlah'];
+            $row['jumlah'] = floatval($row['saldo']);
+            $total_piutang += $row['jumlah'];
         }
 
         $data = [
             'piutang' => $piutang,
             'start' => $start,
             'end' => $end,
-            'total_piutang' => $total
+            'total_piutang' => $total_piutang,
+            'timestamp' => $currentTimestamp
         ];
 
         $html = view('keuangan/pdf_piutang', $data);
 
-        $options = new Options();
+        $options = new \Dompdf\Options();
         $options->set('defaultFont', 'Arial');
         $options->set('isRemoteEnabled', true);
 
-        $dompdf = new Dompdf($options);
+        $dompdf = new \Dompdf\Dompdf($options);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        // ✅ Ubah nama file & tampilkan judul di tab browser
         $dompdf->stream('Laporan_Piutang_Origins_Kebab.pdf', ['Attachment' => false]);
     }
 
@@ -773,6 +760,7 @@ class Keuangan extends BaseController
         $semester    = $this->request->getGet('semester');
         $start_date  = $this->request->getGet('start_date');
         $end_date    = $this->request->getGet('end_date');
+        $currentTimestamp = date('d M Y, H:i') . ' WIB';
 
         // Tentukan range tanggal dan judul
         switch ($filter) {
@@ -841,7 +829,8 @@ class Keuangan extends BaseController
             'beban'          => $beban,
             'totalPendapatan' => $totalPendapatan,
             'totalBeban'     => $totalBeban,
-            'labaBersih'     => $labaBersih
+            'labaBersih'     => $labaBersih,
+            'timestamp' => $currentTimestamp
         ];
 
         $html = view('keuangan/laba_rugi_pdf', $data);
@@ -860,193 +849,90 @@ class Keuangan extends BaseController
 
     public function laporanPerubahanEkuitas()
     {
-        if (!in_groups('keuangan')) {
-            return redirect()->to('login');
-        }
+        helper(['form', 'url']);
+        $akunModel = new AkunModel();
 
-        $akunModel = new \App\Models\AkunModel();
-        $db = \Config\Database::connect();
+        // Ambil filter dari request
+        $filter     = $this->request->getGet('filter') ?? 'bulan';
+        $bulan      = $this->request->getGet('bulan') ?? date('m');
+        $tahun      = $this->request->getGet('tahun') ?? date('Y');
+        $triwulan   = $this->request->getGet('triwulan') ?? 1;
+        $semester   = $this->request->getGet('semester') ?? 1;
+        $start_date = null;
+        $end_date   = null;
 
-        $filter    = $this->request->getGet('filter') ?? 'bulan';
-        $bulan     = $this->request->getGet('bulan') ?? date('n');
-        $tahun     = $this->request->getGet('tahun') ?? date('Y');
-        $start_date = $this->request->getGet('start_date');
-        $end_date   = $this->request->getGet('end_date');
-        $triwulan  = $this->request->getGet('triwulan');
-        $semester  = $this->request->getGet('semester');
-
-        // Penentuan range periode
+        // Tentukan range tanggal berdasarkan filter
         switch ($filter) {
             case 'rentang':
-                $awal = $start_date;
-                $akhir = $end_date;
-                $judulPeriode = 'Rentang ' . date('d M Y', strtotime($awal)) . ' - ' . date('d M Y', strtotime($akhir));
+                $start_date = $this->request->getGet('start_date');
+                $end_date   = $this->request->getGet('end_date');
+                break;
+
+            case 'bulan':
+                $start_date = date('Y-m-01', strtotime("$tahun-$bulan-01"));
+                $end_date   = date('Y-m-t', strtotime($start_date));
                 break;
 
             case 'triwulan':
-                $startMonth = (($triwulan - 1) * 3) + 1;
-                $endMonth = $startMonth + 2;
-                $awal = "$tahun-" . str_pad($startMonth, 2, '0', STR_PAD_LEFT) . "-01";
-                $akhir = date('Y-m-t', strtotime("$tahun-" . str_pad($endMonth, 2, '0', STR_PAD_LEFT) . "-01"));
-                $judulPeriode = 'Triwulan ' . $triwulan . ' (' . date('F', mktime(0, 0, 0, $startMonth)) . ' - ' . date('F', mktime(0, 0, 0, $endMonth)) . " $tahun)";
+                if ($triwulan == 1) {
+                    $start_date = "$tahun-01-01";
+                    $end_date   = "$tahun-03-31";
+                } elseif ($triwulan == 2) {
+                    $start_date = "$tahun-04-01";
+                    $end_date   = "$tahun-06-30";
+                } elseif ($triwulan == 3) {
+                    $start_date = "$tahun-07-01";
+                    $end_date   = "$tahun-09-30";
+                } elseif ($triwulan == 4) {
+                    $start_date = "$tahun-10-01";
+                    $end_date   = "$tahun-12-31";
+                }
                 break;
+
             case 'semester':
-                $awal = ($semester == 1) ? "$tahun-01-01" : "$tahun-07-01";
-                $akhir = ($semester == 1) ? "$tahun-06-30" : "$tahun-12-31";
-                $judulPeriode = ($semester == 1) ? "Semester 1 (Jan - Jun) $tahun" : "Semester 2 (Jul - Des) $tahun";
+                if ($semester == 1) {
+                    $start_date = "$tahun-01-01";
+                    $end_date   = "$tahun-06-30";
+                } else {
+                    $start_date = "$tahun-07-01";
+                    $end_date   = "$tahun-12-31";
+                }
                 break;
+
             case 'tahun':
-                $awal = "$tahun-01-01";
-                $akhir = "$tahun-12-31";
-                $judulPeriode = "Tahun $tahun";
+                $start_date = "$tahun-01-01";
+                $end_date   = "$tahun-12-31";
                 break;
-            default: // bulan
-                $awal = "$tahun-" . str_pad($bulan, 2, '0', STR_PAD_LEFT) . "-01";
-                $akhir = date('Y-m-t', strtotime($awal));
-                $judulPeriode = date('F Y', strtotime($awal));
+
+            default:
+                $start_date = date('Y-m-01');
+                $end_date   = date('Y-m-t');
                 break;
         }
 
-        // Modal awal = modal akhir bulan sebelum periode awal
-        $periodeAwal = new \DateTime($awal);
-        $periodeAwal->modify('-1 month');
-        $bulanSebelumnya = (int) $periodeAwal->format('n');
-        $tahunSebelumnya = (int) $periodeAwal->format('Y');
+        // Pastikan semua variabel ada meskipun tidak dipakai di view
+        $modal_awal      = $akunModel->getModalAkhirSebelumPeriode($start_date);
+        $tambahan_modal  = $akunModel->getTambahanModalRange($start_date, $end_date);
+        $laba_bersih     = $akunModel->getTotalPendapatanRange($start_date, $end_date)
+            - $akunModel->getTotalBebanRange($start_date, $end_date);
+        $prive           = $akunModel->getPriveRange($start_date, $end_date);
+        $modal_akhir     = $modal_awal + $tambahan_modal + $laba_bersih - $prive;
 
-        // Ambil modal awal dari akun 'Modal'
-        $modalAkun = $akunModel->where('kode_akun', '301')->first();
-        $modalAwal = $modalAkun['saldo'] ?? 0;
-
-
-        // Hitung saldo awal (modal + laba - prive bulan sebelumnya)
-        if ($filter === 'rentang') {
-            $tanggalSebelumnya = date('Y-m-d', strtotime($start_date . ' -1 day'));
-            $awalLalu = date('Y-01-01', strtotime($start_date));
-            $akhirLalu = $tanggalSebelumnya;
-        } elseif ($filter === 'triwulan') {
-            $startMonth = (($triwulan - 1) * 3) + 1;
-            $endMonth = $startMonth + 2;
-
-            $awalLalu = "$tahun-" . str_pad($startMonth, 2, '0', STR_PAD_LEFT) . "-01";
-            $akhirLalu = date('Y-m-t', strtotime("$tahun-" . str_pad($endMonth, 2, '0', STR_PAD_LEFT) . "-01"));
-        } elseif ($filter === 'semester') {
-            if ($semester == 1) {
-                $awalLalu = "$tahun-01-01";
-                $akhirLalu = "$tahun-06-30";
-                $labaLalu = 0;
-                $priveLalu = 0;
-            } else {
-                $awalLalu = "$tahun-01-01";
-                $akhirLalu = "$tahun-06-30";
-            }
-        } elseif ($filter === 'tahun') {
-            $awalLalu = "$tahun-01-01";
-            $akhirLalu = "$tahun-12-31";
-        } else { // default bulan
-            $bulanSebelumnya = $bulan - 1;
-            $tahunSebelumnya = $tahun;
-            if ($bulanSebelumnya == 0) {
-                $bulanSebelumnya = 12;
-                $tahunSebelumnya--;
-            }
-
-            $awalLalu = "$tahunSebelumnya-" . str_pad($bulanSebelumnya, 2, '0', STR_PAD_LEFT) . "-01";
-            $akhirLalu = date('Y-m-t', strtotime($awalLalu));
-        }
-
-        // Hitung laba dan prive lalu (kecuali untuk triwulan/semester 1)
-        if (!isset($labaLalu)) {
-            $pendapatanLalu = $akunModel->getTotalPendapatanRange($awalLalu, $akhirLalu);
-            $bebanLalu = $akunModel->getTotalBebanRange($awalLalu, $akhirLalu);
-            $priveLalu = $akunModel->getPriveRange($awalLalu, $akhirLalu);
-            $labaLalu = $pendapatanLalu - $bebanLalu;
-        }
-
-        $modalAwalBulanIni = $akunModel->getSaldoAkunSampaiTanggal('301', date('Y-m-d', strtotime($awal . ' -1 day')));
-        if ($modalAwalBulanIni === null) {
-            $modalAwalBulanIni = 0;
-        }
-        // Hitung laba rugi & prive periode saat ini
-        $pendapatan = $akunModel->getTotalPendapatanRange($awal, $akhir);
-        $beban = $akunModel->getTotalBebanRange($awal, $akhir);
-        $labaBersih = $pendapatan - $beban;
-        $prive = $akunModel->getPriveRange($awal, $akhir);
-
-        // Hitung total ekuitas akhir
-        $totalEkuitas = $modalAwalBulanIni + $labaBersih - $prive;
-
-
-        // Ambil akun modal
-        $modalAkun = $akunModel->where('nama_akun', 'Modal')->first();
-        $modalAwal = $modalAkun['saldo'] ?? 0;
-
-        // Laba rugi periode ini (dari jurnal)
-        $akunList = $akunModel->whereIn('jenis_akun', ['Pendapatan', 'Beban'])->findAll();
-        $totalPendapatan = 0;
-        $totalBeban = 0;
-
-        foreach ($akunList as $akun) {
-            $mutasi = $db->table('jurnal_umum')
-                ->selectSum('debit', 'debit')
-                ->selectSum('kredit', 'kredit')
-                ->where('akun_id', $akun['id'])
-                ->where('tanggal >=', $awal)
-                ->where('tanggal <=', $akhir)
-                ->get()->getRowArray();
-
-            $debit = $mutasi['debit'] ?? 0;
-            $kredit = $mutasi['kredit'] ?? 0;
-            $saldo = ($akun['tipe'] === 'debit') ? $debit - $kredit : $kredit - $debit;
-
-            if ($akun['jenis_akun'] === 'Pendapatan') {
-                $totalPendapatan += $saldo;
-            } else {
-                $totalBeban += $saldo;
-            }
-        }
-
-        $labaRugi = $totalPendapatan - $totalBeban;
-
-        // Ambil total prive selama periode
-        $prive = $akunModel->getPriveRange($awal, $akhir); // pastikan fungsi ini ada di model
-
-        // Hitung modal akhir
-        $modalAkhir = $modalAwal + $labaRugi - $prive;
-        $ekuitas = [
-            [
-                'keterangan' => 'Modal Awal',
-                'jumlah' => $modalAwalBulanIni,
-            ],
-            [
-                'keterangan' => 'Laba Bersih',
-                'jumlah' => $labaBersih,
-            ],
-            [
-                'keterangan' => 'Prive',
-                'jumlah' => -$prive, // negative untuk pengurangan
-            ],
-            [
-                'keterangan' => 'Total Ekuitas Akhir',
-                'jumlah' => $totalEkuitas,
-            ]
-        ];
-
-        $data = [
-            'filter' => $filter,
-            'bulan' => $bulan,
-            'tahun' => $tahun,
-            'start_date' => $start_date,
-            'end_date' => $end_date,
-            'triwulan' => $triwulan,
-            'semester' => $semester,
-            'judulPeriode' => $judulPeriode,
-            'modal_awal' => $modalAwal,
-            'prive' => $prive,
-            'totalEkuitas' => $totalEkuitas,
-            'ekuitas' => $ekuitas, // <-- penting!
-        ];
-        $data['tittle'] = 'Laporan Perubahan Ekuitas';
-        return view('keuangan/laporan_perubahan_ekuitas', $data);
+        return view('keuangan/laporan_perubahan_ekuitas', [
+            'tittle' => 'Laporan Perubahan Ekuitas',
+            'filter'          => $filter,
+            'bulan'           => $bulan,
+            'tahun'           => $tahun,
+            'triwulan'        => $triwulan,
+            'semester'        => $semester,
+            'start_date'      => $start_date,
+            'end_date'        => $end_date,
+            'modal_awal'      => $modal_awal,
+            'tambahan_modal'  => $tambahan_modal,
+            'laba_bersih'     => $laba_bersih,
+            'prive'           => $prive,
+            'modal_akhir'     => $modal_akhir
+        ]);
     }
 
     public function exportPerubahanEkuitasPDF()
@@ -1061,8 +947,14 @@ class Keuangan extends BaseController
         $start_date = $this->request->getGet('start_date');
         $end_date   = $this->request->getGet('end_date');
 
-        // Penentuan range periode
+        // Tentukan awal & akhir periode + judulnya
         switch ($filter) {
+            case 'tanggal':
+                $awal = $start_date;
+                $akhir = $start_date;
+                $judulPeriode = 'Tanggal ' . date('d M Y', strtotime($awal));
+                break;
+
             case 'rentang':
                 $awal = $start_date;
                 $akhir = $end_date;
@@ -1096,43 +988,34 @@ class Keuangan extends BaseController
                 break;
         }
 
-        // Hitung modal awal sebelum periode
-        $modalAwal = $akunModel->getModalAkhirSebelumPeriode($awal);
+        // 🔴 Ini bagian penting yang belum ada sebelumnya
+        $modalAwal      = $akunModel->getModalAkhirSebelumPeriode($awal);
+        $tambahanModal  = $akunModel->getTambahanModalRange($awal, $akhir); // ✅ DITAMBAHKAN
+        $pendapatan     = $akunModel->getTotalPendapatanRange($awal, $akhir);
+        $beban          = $akunModel->getTotalBebanRange($awal, $akhir);
+        $labaBersih     = $pendapatan - $beban;
+        $prive          = $akunModel->getPriveRange($awal, $akhir);
+        $modalAkhir     = $modalAwal + $tambahanModal + $labaBersih - $prive;
 
-        // Laba dan prive periode ini
-        $pendapatan = $akunModel->getTotalPendapatanRange($awal, $akhir);
-        $beban = $akunModel->getTotalBebanRange($awal, $akhir);
-        $labaBersih = $pendapatan - $beban;
-        $prive = $akunModel->getPriveRange($awal, $akhir);
-        $totalEkuitas = $modalAwal + $labaBersih - $prive;
-
-        $ekuitas = [
-            [
-                'keterangan' => 'Modal Awal',
-                'jumlah' => $modalAwal,
-            ],
-            [
-                'keterangan' => 'Laba Bersih',
-                'jumlah' => $labaBersih,
-            ],
-            [
-                'keterangan' => 'Prive',
-                'jumlah' => -$prive,
-            ],
-            [
-                'keterangan' => 'Total Ekuitas Akhir',
-                'jumlah' => $totalEkuitas,
-            ]
-        ];
-
-        // Waktu ekspor (dalam WIB / Asia/Jakarta)
+        // Waktu cetak
         date_default_timezone_set('Asia/Jakarta');
         $timestamp = date('d-m-Y H:i:s') . ' WIB';
 
         $data = [
-            'judulPeriode' => $judulPeriode,
-            'ekuitas' => $ekuitas,
-            'timestamp' => $timestamp
+            'judulPeriode'   => $judulPeriode,
+            'modalAwal'      => $modalAwal,
+            'tambahanModal'  => $tambahanModal, // ✅ DITAMBAHKAN
+            'labaBersih'     => $labaBersih,
+            'prive'          => $prive,
+            'modalAkhir'     => $modalAkhir,
+            'timestamp'      => $timestamp,
+            'filter'         => $filter,
+            'bulan'          => $bulan,
+            'tahun'          => $tahun,
+            'triwulan'       => $triwulan,
+            'semester'       => $semester,
+            'start_date'     => $start_date,
+            'end_date'       => $end_date
         ];
 
         $html = view('keuangan/perubahan_ekuitas_pdf', $data);
@@ -1145,15 +1028,14 @@ class Keuangan extends BaseController
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-
         $dompdf->stream("Laporan_Perubahan_Ekuitas.pdf", ["Attachment" => true]);
     }
 
     public function laporanNeraca()
     {
         $akunModel = new \App\Models\AkunModel();
-        $db = \Config\Database::connect();
 
+        // Filter waktu tetap dipertahankan agar bisa ditampilkan di view
         $filter = $this->request->getGet('filter') ?? 'bulan';
         $bulan = $this->request->getGet('bulan') ?? date('n');
         $tahun = $this->request->getGet('tahun') ?? date('Y');
@@ -1162,25 +1044,28 @@ class Keuangan extends BaseController
         $start_date = $this->request->getGet('start_date');
         $end_date = $this->request->getGet('end_date');
 
-        // Tentukan periode
+        // Penentuan judul periode
+        // Penentuan judul periode
         switch ($filter) {
             case 'triwulan':
                 $bulanAwal = (($triwulan - 1) * 3) + 1;
                 $awal = "$tahun-" . str_pad($bulanAwal, 2, '0', STR_PAD_LEFT) . "-01";
-                $akhir = date('Y-m-t', strtotime("+2 months", strtotime($awal)));
-                $judulPeriode = "Triwulan $triwulan " . date('Y', strtotime($awal));
+                $akhirBulan = $bulanAwal + 2;
+                $end_date = date('Y-m-t', strtotime("$tahun-" . str_pad($akhirBulan, 2, '0', STR_PAD_LEFT) . "-01"));
+                $judulPeriode = "Triwulan $triwulan $tahun";
                 break;
 
             case 'semester':
                 $bulanAwal = $semester == 1 ? 1 : 7;
                 $awal = "$tahun-" . str_pad($bulanAwal, 2, '0', STR_PAD_LEFT) . "-01";
-                $akhir = date('Y-m-t', strtotime("+5 months", strtotime($awal)));
+                $akhirBulan = $semester == 1 ? 6 : 12;
+                $end_date = date('Y-m-t', strtotime("$tahun-" . str_pad($akhirBulan, 2, '0', STR_PAD_LEFT) . "-01"));
                 $judulPeriode = "Semester $semester $tahun";
                 break;
 
             case 'tahun':
                 $awal = "$tahun-01-01";
-                $akhir = "$tahun-12-31";
+                $end_date = "$tahun-12-31";
                 $judulPeriode = "Tahun $tahun";
                 break;
 
@@ -1189,66 +1074,64 @@ class Keuangan extends BaseController
                     return redirect()->back()->with('error', 'Tanggal awal dan akhir harus diisi.');
                 }
                 $awal = $start_date;
-                $akhir = $end_date;
-                $judulPeriode = "Periode " . date('d M Y', strtotime($awal)) . " - " . date('d M Y', strtotime($akhir));
+                // $end_date sudah diambil dari input
+                $judulPeriode = "Periode " . date('d M Y', strtotime($start_date)) . " - " . date('d M Y', strtotime($end_date));
                 break;
 
-            default: // bulan
+            default: // Bulanan
                 $awal = "$tahun-" . str_pad($bulan, 2, '0', STR_PAD_LEFT) . "-01";
-                $akhir = date('Y-m-t', strtotime($awal));
+                $end_date = date('Y-m-t', strtotime($awal));
                 $judulPeriode = date('F Y', strtotime($awal));
                 break;
         }
 
+
+        // Tambahkan baris ini setelah switch-case
+        if (!$end_date) {
+            if ($filter == 'rentang') {
+                // sudah aman
+            } else {
+                $end_date = date('Y-m-t', strtotime($awal)); // akhir bulan
+            }
+        }
+
         $akunList = $akunModel->findAll();
+        $akunJurnal = $akunModel->getSaldoAkunBerdasarkanJurnal($awal, $end_date ?? date('Y-m-t'));
 
         $aset = $kewajiban = $ekuitas = [];
         $total_aset = $total_kewajiban = $total_ekuitas = 0;
 
-        foreach ($akunList as $akun) {
-            $akunId = $akun['id'];
-            $tipe = $akun['tipe'];
+        foreach ($akunJurnal as $akun) {
+            $saldo = $akun['total_debit'] - $akun['total_kredit'];
+            if (strtolower($akun['tipe']) === 'kredit') {
+                $saldo = $akun['total_kredit'] - $akun['total_debit'];
+            }
 
-            // Saldo awal = saldo sampai sebelum periode
-            $saldoAwal = $akunModel->getSaldoAkunSampaiTanggal($akunId, date('Y-m-d', strtotime($awal . ' -1 day')));
+            // Abaikan jika saldo 0
+            if ($saldo == 0) continue;
 
-            // Mutasi dalam periode
-            $mutasi = $db->table('jurnal_umum')
-                ->selectSum('debit', 'debit')
-                ->selectSum('kredit', 'kredit')
-                ->where('akun_id', $akunId)
-                ->where('tanggal >=', $awal)
-                ->where('tanggal <=', $akhir)
-                ->get()->getRowArray();
-
-            $debit = $mutasi['debit'] ?? 0;
-            $kredit = $mutasi['kredit'] ?? 0;
-
-            $saldoAkhir = ($tipe === 'debit')
-                ? $saldoAwal + $debit - $kredit
-                : $saldoAwal - $debit + $kredit;
-
-            if ($saldoAkhir == 0) continue;
-
-            $akunRow = ['keterangan' => $akun['nama_akun'], 'jumlah' => $saldoAkhir];
+            $akunRow = [
+                'keterangan' => $akun['nama_akun'],
+                'jumlah' => $saldo
+            ];
 
             switch (strtolower($akun['jenis_akun'])) {
                 case 'aset':
                     $aset[] = $akunRow;
-                    $total_aset += $saldoAkhir;
+                    $total_aset += $saldo;
                     break;
                 case 'kewajiban':
                     $kewajiban[] = $akunRow;
-                    $total_kewajiban += $saldoAkhir;
+                    $total_kewajiban += $saldo;
                     break;
                 case 'ekuitas':
                 case 'modal':
                     if (strtolower($akun['nama_akun']) === 'prive') {
-                        $ekuitas[] = ['keterangan' => $akun['nama_akun'], 'jumlah' => -$saldoAkhir];
-                        $total_ekuitas -= $saldoAkhir; // Prive mengurangi ekuitas
+                        $ekuitas[] = ['keterangan' => $akun['nama_akun'], 'jumlah' => -$saldo];
+                        $total_ekuitas -= $saldo;
                     } else {
                         $ekuitas[] = $akunRow;
-                        $total_ekuitas += $saldoAkhir;
+                        $total_ekuitas += $saldo;
                     }
                     break;
             }
@@ -1456,7 +1339,7 @@ class Keuangan extends BaseController
         $kategori = [
             'operasi'   => ['Pendapatan', 'Beban'],
             'investasi' => ['Aset Tetap'],
-            'pendanaan' => ['Modal', 'Prive']
+            'pendanaan' => ['Ekuitas', 'Prive']
         ];
 
         $arusKas = [
@@ -1467,11 +1350,16 @@ class Keuangan extends BaseController
         ];
 
         $akunList = $akunModel->findAll();
+        // Daftar kode akun kas/setara kas
+        $akunKas = ['101', '102', '103', '104', '105', '106']; // atau berdasarkan jenis_akun == 'Kas'
 
         foreach ($akunList as $akun) {
             $akunId = $akun['id'];
+            $kode = $akun['kode_akun'];
             $jenis = $akun['jenis_akun'];
             $tipe = $akun['tipe'];
+
+            if (in_array($kode, $akunKas)) continue;
 
             $mutasi = $db->table('jurnal_umum')
                 ->selectSum('debit')
@@ -1484,9 +1372,26 @@ class Keuangan extends BaseController
             $debit = $mutasi['debit'] ?? 0;
             $kredit = $mutasi['kredit'] ?? 0;
 
-            $netto = ($tipe === 'debit') ? ($kredit - $debit) : ($debit - $kredit);
+            // Perhitungan arus kas
+            if (in_array($jenis, $kategori['operasi'])) {
+                // Aktivitas operasi
+                if ($tipe === 'kredit') {
+                    // Contoh: akun Penjualan → kas masuk
+                    $netto = $kredit;
+                } else {
+                    // Contoh: akun Beban → kas keluar
+                    $netto = -$debit;
+                }
+            } else {
+                // Aktivitas investasi dan pendanaan: kas masuk = kredit, kas keluar = debit
+                $netto = $kredit - $debit;
+            }
+
+
+            // Lewati jika tidak ada arus
             if ($netto == 0) continue;
 
+            // Kelompokkan berdasarkan jenis aktivitas
             if (in_array($jenis, $kategori['operasi'])) {
                 $arusKas['operasi'][] = ['akun' => $akun['nama_akun'], 'jumlah' => $netto];
             } elseif (in_array($jenis, $kategori['investasi'])) {
@@ -1495,6 +1400,7 @@ class Keuangan extends BaseController
                 $arusKas['pendanaan'][] = ['akun' => $akun['nama_akun'], 'jumlah' => $netto];
             }
 
+            // Tambahkan ke total kas bersih
             $arusKas['total'] += $netto;
         }
 
@@ -1527,6 +1433,8 @@ class Keuangan extends BaseController
         $semester = $this->request->getGet('semester') ?? 1;
         $start_date = $this->request->getGet('start_date');
         $end_date = $this->request->getGet('end_date');
+        $currentTimestamp = date('d M Y, H:i') . ' WIB';
+
 
         switch ($filter) {
             case 'triwulan':
@@ -1568,7 +1476,7 @@ class Keuangan extends BaseController
         $kategori = [
             'operasi' => ['Pendapatan', 'Beban'],
             'investasi' => ['Aset Tetap'],
-            'pendanaan' => ['Modal', 'Prive']
+            'pendanaan' => ['Ekuitas', 'Prive']
         ];
 
         $arusKas = [
@@ -1578,12 +1486,16 @@ class Keuangan extends BaseController
             'total' => 0
         ];
 
+        $akunKas = ['101', '102', '103', '104', '105', '106'];
         $akunList = $akunModel->findAll();
 
         foreach ($akunList as $akun) {
             $akunId = $akun['id'];
+            $kode = $akun['kode_akun'];
             $jenis = $akun['jenis_akun'];
             $tipe = $akun['tipe'];
+
+            if (in_array($kode, $akunKas)) continue;
 
             $mutasi = $db->table('jurnal_umum')
                 ->selectSum('debit')
@@ -1596,7 +1508,12 @@ class Keuangan extends BaseController
             $debit = $mutasi['debit'] ?? 0;
             $kredit = $mutasi['kredit'] ?? 0;
 
-            $netto = ($tipe === 'debit') ? ($kredit - $debit) : ($debit - $kredit);
+            if (in_array($jenis, $kategori['pendanaan']) || in_array($jenis, $kategori['investasi'])) {
+                $netto = $kredit - $debit;
+            } else {
+                $netto = ($tipe === 'debit') ? ($kredit - $debit) : ($debit - $kredit);
+            }
+
             if ($netto == 0) continue;
 
             if (in_array($jenis, $kategori['operasi'])) {
@@ -1610,15 +1527,19 @@ class Keuangan extends BaseController
             $arusKas['total'] += $netto;
         }
 
+        // Generate PDF
+        $options = new \Dompdf\Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new \Dompdf\Dompdf($options);
+
         $html = view('keuangan/arus_kas_pdf', [
             'tittle' => 'Laporan Arus Kas',
             'periodeText' => $periodeText,
-            'arusKas' => $arusKas
+            'arusKas' => $arusKas,
+            'timestamp' => $currentTimestamp
+
         ]);
 
-        $options = new Options();
-        $options->set('isHtml5ParserEnabled', true);
-        $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
@@ -1631,9 +1552,12 @@ class Keuangan extends BaseController
             return redirect()->to('login');
         }
 
+        date_default_timezone_set('Asia/Jakarta');
         $db = \Config\Database::connect();
+
         $bulan = $this->request->getGet('bulan') ?? date('n');
         $tahun = $this->request->getGet('tahun') ?? date('Y');
+        $currentTimestamp = date('d M Y, H:i') . ' WIB';
 
         $akun = $db->table('akun')
             ->orderBy('kode_akun', 'ASC')
@@ -1646,31 +1570,35 @@ class Keuangan extends BaseController
 
         $awalBulan = "$tahun-" . str_pad($bulan, 2, '0', STR_PAD_LEFT) . "-01";
         $awalBulanBerikut = date('Y-m-d', strtotime('+1 month', strtotime($awalBulan)));
-        // Periode sampai akhir bulan sebelumnya
+
         $bulanSebelumnya = $bulan - 1;
         $tahunSebelumnya = $tahun;
         if ($bulanSebelumnya == 0) {
             $bulanSebelumnya = 12;
             $tahunSebelumnya--;
         }
-        $akhirBulanSebelumnya = date('Y-m-t', strtotime($tahunSebelumnya . '-' . $bulanSebelumnya . '-01'));
+
+        $akhirBulanSebelumnya = date('Y-m-t', strtotime("$tahunSebelumnya-$bulanSebelumnya-01"));
 
         foreach ($akun as $a) {
+            // Saldo akhir hingga sebelum bulan berjalan
             $jurnalSebelum = $db->table('jurnal_umum')
                 ->selectSum('debit')
                 ->selectSum('kredit')
                 ->where('akun_id', $a['id'])
                 ->where('tanggal <', $awalBulan)
                 ->get()->getRow();
+
             $debitSebelum = $jurnalSebelum->debit ?? 0;
             $kreditSebelum = $jurnalSebelum->kredit ?? 0;
 
             if ($a['tipe'] === 'debit') {
-                $saldo_awal_periode = $a['saldo'] + $debitSebelum - $kreditSebelum;
+                $saldo_awal_periode = $debitSebelum - $kreditSebelum;
             } else {
-                $saldo_awal_periode = $a['saldo'] - $debitSebelum + $kreditSebelum;
+                $saldo_awal_periode = $kreditSebelum - $debitSebelum;
             }
 
+            // Mutasi bulan ini
             $jurnalBulanIni = $db->table('jurnal_umum')
                 ->selectSum('debit')
                 ->selectSum('kredit')
@@ -1678,6 +1606,7 @@ class Keuangan extends BaseController
                 ->where('tanggal >=', $awalBulan)
                 ->where('tanggal <', $awalBulanBerikut)
                 ->get()->getRow();
+
             $debitBulanIni = $jurnalBulanIni->debit ?? 0;
             $kreditBulanIni = $jurnalBulanIni->kredit ?? 0;
 
@@ -1704,6 +1633,7 @@ class Keuangan extends BaseController
             'total_kredit'   => $total_kredit,
             'bulan'          => $bulan,
             'tahun'          => $tahun,
+            'timestamp'      => $currentTimestamp,
         ];
 
         $html = view('keuangan/neraca_saldo_pdf', $data);
@@ -1715,6 +1645,7 @@ class Keuangan extends BaseController
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
+
         $namaBulan = date('F', mktime(0, 0, 0, $bulan, 1));
         $dompdf->stream("Neraca_Saldo_{$namaBulan}_{$tahun}.pdf", ["Attachment" => true]);
     }

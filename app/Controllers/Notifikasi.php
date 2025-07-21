@@ -83,30 +83,55 @@ class Notifikasi extends BaseController
             return redirect()->to('/notifikasi/pesan_masuk')->with('error', 'Notifikasi tidak ditemukan');
         }
 
-        // Tandai dibaca jika belum
         if ($notif['dibaca'] == 0) {
             $this->notifikasiModel->update($id, ['dibaca' => 1]);
         }
 
         $bsjList = [];
         $perintahKerja = null;
+        $data = [];
+
         if ($notif['tipe'] === 'perintah_kerja' && !empty($notif['relasi_id'])) {
             $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
             $perintahKerja = $perintahKerjaModel->find($notif['relasi_id']);
+
             if ($perintahKerja && !empty($perintahKerja['bsj'])) {
-                if (is_string($perintahKerja['bsj'])) {
-                    $bsjList = json_decode($perintahKerja['bsj'], true);
-                } elseif (is_array($perintahKerja['bsj'])) {
-                    $bsjList = $perintahKerja['bsj'];
-                }
+                $bsjList = is_string($perintahKerja['bsj'])
+                    ? json_decode($perintahKerja['bsj'], true)
+                    : $perintahKerja['bsj'];
             }
+        } elseif ($notif['tipe'] === 'pengiriman' && !empty($notif['relasi_id'])) {
+            $pengirimanModel = new \App\Models\PengirimanModel();
+            $pengirimanDetailModel = new \App\Models\PengirimanDetailModel();
+
+            $pengiriman = $pengirimanModel->find($notif['relasi_id']);
+            if (!$pengiriman) {
+                return redirect()->to('/notifikasi/pesan_masuk')->with('error', 'Data pengiriman tidak ditemukan');
+            }
+
+            $detail = $pengirimanDetailModel
+                ->where('pengiriman_id', $notif['relasi_id'])
+                ->findAll();
+
+            $jumlahTotal = array_sum(array_column($detail, 'jumlah'));
+
+            $data = [
+                'tanggal'            => $pengiriman['tanggal'] ?? '',
+                'catatan'            => $pengiriman['catatan'] ?? '',
+                'jumlah'             => $jumlahTotal,
+                'jenis'              => 'pengiriman',
+                'outlet_id'          => $pengiriman['outlet_id'] ?? null,
+                'detail_pengiriman'  => $detail, // array detail bahan
+            ];
         }
 
         return view('notifikasi/detail', [
-            'tittle' => 'SIOK | Detail Notifikasi',
-            'notifikasi' => $notif,
-            'bsj' => $bsjList,
-            'perintahKerja' => $perintahKerja,
+            'tittle'         => 'SIOK | Detail Notifikasi',
+            'notifikasi'     => $notif,
+            'bsj'            => $bsjList,
+            'perintahKerja'  => $perintahKerja,
+            'data'           => $data,
+            'jenis'          => $data['jenis'],
         ]);
     }
 }

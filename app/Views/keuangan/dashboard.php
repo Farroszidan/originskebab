@@ -19,7 +19,7 @@
                                     <?= esc($kas['nama_outlet']); ?>
                                 </div>
                                 <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                    Rp <?= number_format($kas['saldo_awal'], 0, ',', '.'); ?>
+                                    Rp <?= number_format($kas['saldo'], 0, ',', '.'); ?>
                                 </div>
                             </div>
                         </div>
