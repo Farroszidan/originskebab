@@ -1,7 +1,7 @@
 <?= $this->extend('templates/index_templates_general'); ?>
 <?= $this->section('page-content'); ?>
 <div class="container-fluid">
-    <h1 class="h3 mb-4 text-gray-800">Detail Perintah Kerja Produksi BSJ</h1>
+    <h1 class="h3 mb-4 text-gray-800">Detail Perintah Kerja Produksi</h1>
     <?php if (!empty($perintah)): ?>
         <div class="card mb-4">
             <div class="card-header font-weight-bold">Info Perintah Kerja</div>
@@ -20,23 +20,35 @@
                 <table class="table table-bordered">
                     <thead>
                         <tr>
-                            <th>BSJ</th>
+                            <th>Tipe</th>
+                            <th>Nama</th>
                             <th>Jumlah</th>
+                            <th>Satuan</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>Kulit Kebab</td>
-                            <td><?= esc($perintah['jumlah_kulit'] ?? '0') ?></td>
-                        </tr>
-                        <tr>
-                            <td>Olahan Daging Ayam</td>
-                            <td><?= esc($perintah['jumlah_ayam'] ?? '0') ?></td>
-                        </tr>
-                        <tr>
-                            <td>Olahan Daging Sapi</td>
-                            <td><?= esc($perintah['jumlah_sapi'] ?? '0') ?></td>
-                        </tr>
+                        <?php
+                        $daftarProduksi = [];
+                        if (!empty($perintah['bsj'])) {
+                            $daftarProduksi = json_decode($perintah['bsj'], true);
+                        }
+                        if (!empty($daftarProduksi)) {
+                            foreach ($daftarProduksi as $item) {
+                                $tipe = isset($item['tipe']) ? $item['tipe'] : 'bsj';
+                                $nama = isset($item['nama']) ? $item['nama'] : (isset($item['bsjId']) ? 'BSJ ID ' . $item['bsjId'] : '-');
+                                $jumlah = isset($item['jumlah']) ? $item['jumlah'] : '-';
+                                $satuan = isset($item['satuan']) ? $item['satuan'] : '-';
+                                echo '<tr>';
+                                echo '<td>' . ($tipe === 'bsj' ? 'BSJ' : 'Bahan Baku') . '</td>';
+                                echo '<td>' . esc($nama) . '</td>';
+                                echo '<td>' . esc($jumlah) . '</td>';
+                                echo '<td>' . esc($satuan) . '</td>';
+                                echo '</tr>';
+                            }
+                        } else {
+                            echo '<tr><td colspan="4">Belum ada data produksi.</td></tr>';
+                        }
+                        ?>
                     </tbody>
                 </table>
             </div>

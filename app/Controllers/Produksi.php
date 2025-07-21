@@ -1026,7 +1026,7 @@ class Produksi extends BaseController
     public function formHPP()
     {
         if (!in_groups(['admin', 'produksi'])) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+            return redirect()->to('login');
         }
         $produksiModel = new \App\Models\ProduksiModel();
         $produksi = $produksiModel->where('status', 'selesai')->findAll();
@@ -1414,20 +1414,33 @@ class Produksi extends BaseController
 
         if ($bsjId && $tanggalMulai && $tanggalSelesai) {
             $kartu = $kartuModel
-                ->select('tanggal, jenis, jumlah, harga_satuan, keterangan')
-                ->where('bsj_id', $bsjId)
-                ->where('tanggal >=', $tanggalMulai)
-                ->where('tanggal <=', $tanggalSelesai)
-                ->orderBy('tanggal', 'ASC')
+                ->select('kartu_persediaan_bsj.*, produksi.total_biaya, produksi.jumlah as jumlah_produksi')
+                ->join(
+                    'produksi',
+                    'produksi.bsj_id = kartu_persediaan_bsj.bsj_id 
+                 AND kartu_persediaan_bsj.jenis = "masuk" 
+                 AND produksi.tanggal = kartu_persediaan_bsj.tanggal',
+                    'left'
+                )
+                ->where('kartu_persediaan_bsj.bsj_id', $bsjId)
+                ->where('kartu_persediaan_bsj.tanggal >=', $tanggalMulai)
+                ->where('kartu_persediaan_bsj.tanggal <=', $tanggalSelesai)
+                ->orderBy('kartu_persediaan_bsj.tanggal', 'ASC')
                 ->findAll();
 
-            // Hitung masuk, keluar, dan saldo secara manual
             $saldo = 0;
             foreach ($kartu as &$row) {
                 $row['masuk_qty']  = ($row['jenis'] === 'masuk') ? $row['jumlah'] : 0;
                 $row['keluar_qty'] = ($row['jenis'] === 'keluar') ? $row['jumlah'] : 0;
                 $row['saldo_qty']  = $saldo = $saldo + $row['masuk_qty'] - $row['keluar_qty'];
-                $row['harga_satuan'] = $row['harga_satuan'] ?? 0;
+
+                // Hitung harga satuan hanya jika masuk
+                if ($row['jenis'] === 'masuk') {
+                    $hargaSatuan = ($row['jumlah_produksi'] ?? 0) > 0 ? ($row['total_biaya'] / $row['jumlah_produksi']) : 0;
+                } else {
+                    $hargaSatuan = 0;
+                }
+                $row['harga_satuan'] = $hargaSatuan;
             }
         }
 
@@ -1523,26 +1536,46 @@ class Produksi extends BaseController
             'kartu' => $kartu,
         ]);
     }
-
+    public function formCetakPersediaanBSJ()
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+        return view('produksi/laporan/form_filter_persediaan_bsj', [
+            'tittle' => 'Form Cetak Laporan Persediaan BSJ'
+        ]);
+    }
     public function cetakPersediaanBSJ()
     {
-        $tittle = 'Laporan Persediaan BSJ';
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->to('login');
+        }
+
+        $start = $this->request->getGet('tanggal_awal') ?? date('Y-m-01');
+        $end   = $this->request->getGet('tanggal_akhir') ?? date('Y-m-d');
+
         $bsjModel = new \App\Models\BSJModel();
         $kartuModel = new \App\Models\KartuPersediaanBSJModel();
-        $tanggalMulai = $this->request->getGet('tanggal_mulai');
-        $tanggalSelesai = $this->request->getGet('tanggal_selesai');
-        $builder = $bsjModel->select('bsj.id, bsj.kode, bsj.nama, bsj.stok, bsj.satuan');
-        if ($tanggalMulai && $tanggalSelesai) {
-            $builder->selectSum("CASE WHEN kp.jenis = 'masuk' THEN kp.jumlah ELSE 0 END", 'masuk');
-            $builder->selectSum("CASE WHEN kp.jenis = 'keluar' THEN kp.jumlah ELSE 0 END", 'keluar');
-            $builder->join('kartu_persediaan_bsj kp', 'kp.bsj_id = bsj.id', 'left')
-                ->where('kp.tanggal >=', $tanggalMulai)
-                ->where('kp.tanggal <=', $tanggalSelesai)
-                ->groupBy('bsj.id');
-        }
-        $bsj = $builder->findAll();
-        return view('produksi/laporan/cetak_persediaan_bsj', compact('tittle', 'bsj', 'tanggalMulai', 'tanggalSelesai'));
+
+        $bsj = $bsjModel->findAll();
+
+        // Ambil semua transaksi kartu persediaan BSJ dalam rentang waktu
+        $kartu = $kartuModel
+            ->where('tanggal >=', $start)
+            ->where('tanggal <=', $end)
+            ->orderBy('tanggal', 'ASC')
+            ->findAll();
+
+        return view('produksi/laporan/cetak_persediaan_bsj', [
+            'tittle' => 'Laporan Persediaan BSJ',
+            'start' => $start,
+            'end' => $end,
+            'bsj' => $bsj,
+            'kartu' => $kartu,
+        ]);
     }
+
+
     public function formCetakProduksi()
     {
         if (!in_groups(['admin', 'produksi'])) {

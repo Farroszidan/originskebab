@@ -16,6 +16,15 @@
                 <?php endforeach; ?>
             </select>
         </div>
+        <div class="col-md-3">
+            <label for="tanggal_mulai">Tanggal Mulai</label>
+            <input type="date" class="form-control" name="tanggal_mulai" value="<?= esc($tanggalMulai ?? '') ?>" required>
+        </div>
+        <div class="col-md-3">
+            <label for="tanggal_selesai">Tanggal Selesai</label>
+            <input type="date" class="form-control" name="tanggal_selesai" value="<?= esc($tanggalSelesai ?? '') ?>" required>
+        </div>
+
         <div class="col-md-1 d-flex align-items-end">
             <button type="submit" class="btn btn-success">Tampilkan</button>
         </div>
@@ -67,13 +76,13 @@
                             <td><?= esc($row['tanggal']); ?></td>
                             <td><?= esc($row['keterangan']); ?></td>
                             <td><?= number_format($masuk_qty); ?></td>
-                            <td><?= number_format($harga, 0, ',', '.'); ?></td>
-                            <td><?= number_format($masuk_qty * $harga, 0, ',', '.'); ?></td>
+                            <td><?= number_format($row['harga_satuan'], 0, ',', '.'); ?></td>
+                            <td><?= number_format($masuk_qty * $row['harga_satuan'], 0, ',', '.'); ?></td>
                             <td><?= number_format($keluar_qty); ?></td>
-                            <td><?= number_format($harga, 0, ',', '.'); ?></td>
-                            <td><?= number_format($keluar_qty * $harga, 0, ',', '.'); ?></td>
+                            <td><?= number_format($row['harga_satuan'], 0, ',', '.'); ?></td>
+                            <td><?= number_format($keluar_qty * $row['harga_satuan'], 0, ',', '.'); ?></td>
                             <td><?= number_format($saldo_qty); ?></td>
-                            <td><?= number_format($harga, 0, ',', '.'); ?></td>
+                            <td><?= number_format($row['harga_satuan'], 0, ',', '.'); ?></td>
                             <td><?= number_format($saldo_harga, 0, ',', '.'); ?></td>
                         </tr>
                     <?php endforeach; ?>
