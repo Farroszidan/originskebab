@@ -1372,14 +1372,21 @@ class Keuangan extends BaseController
             $debit = $mutasi['debit'] ?? 0;
             $kredit = $mutasi['kredit'] ?? 0;
 
-            /// Perhitungan arus kas
-            if (in_array($jenis, $kategori['pendanaan']) || in_array($jenis, $kategori['investasi'])) {
-                // Untuk pendanaan & investasi, arus kas positif jika ada penerimaan (kredit > debit)
-                $netto = $kredit - $debit;
+            // Perhitungan arus kas
+            if (in_array($jenis, $kategori['operasi'])) {
+                // Aktivitas operasi
+                if ($tipe === 'kredit') {
+                    // Contoh: akun Penjualan → kas masuk
+                    $netto = $kredit;
+                } else {
+                    // Contoh: akun Beban → kas keluar
+                    $netto = -$debit;
+                }
             } else {
-                // Untuk operasi, sesuaikan berdasarkan tipe akun
-                $netto = ($tipe === 'debit') ? ($kredit - $debit) : ($debit - $kredit);
+                // Aktivitas investasi dan pendanaan: kas masuk = kredit, kas keluar = debit
+                $netto = $kredit - $debit;
             }
+
 
             // Lewati jika tidak ada arus
             if ($netto == 0) continue;

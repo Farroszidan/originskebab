@@ -26,30 +26,70 @@
             $isi = strtolower($notifikasi['isi']);
             if ($notifikasi['tipe'] === 'perintah_kerja'): ?>
                 <h6 class="text-success">Detail Perintah Kerja Produksi</h6>
-                <?php if (!empty($bsj)): ?>
-                    <div class="mb-3">
-                        <strong>Daftar BSJ yang harus diproduksi:</strong>
-                        <ul>
-                            <?php foreach ($bsj as $item): ?>
-                                <li>
-                                    <?= esc($item['nama'] ?? '-') ?>: <strong><?= esc($item['jumlah'] ?? 0) ?></strong>
-                                    <?php if (!empty($item['totalBiaya'])): ?> (Biaya: Rp <?= number_format($item['totalBiaya'], 0, ',', '.') ?>)<?php endif; ?>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
+                <p><strong>Tanggal:</strong> <?= esc($data['tanggal'] ?? '-') ?></p>
+                <p><strong>Catatan:</strong> <?= esc($data['catatan'] ?? '-') ?></p>
+
+                <div class="card mb-4">
+                    <div class="card-header font-weight-bold">Daftar Produksi</div>
+                    <div class="card-body">
+                        <?php if (!empty($data['daftar_produksi'])): ?>
+                            <table class="table table-bordered table-hover table-sm">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Nama</th>
+                                        <th>Jumlah</th>
+                                        <th>Satuan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($data['daftar_produksi'] as $i => $prod): ?>
+                                        <tr>
+                                            <td><?= $i + 1 ?></td>
+                                            <td><?= esc($prod['nama'] ?? '-') ?></td>
+                                            <td><?= esc($prod['jumlah'] ?? '0') ?></td>
+                                            <td><?= esc($prod['satuan'] ?? '-') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php else: ?>
+                            <div class="alert alert-warning mt-3">Tidak ada data produksi.</div>
+                        <?php endif; ?>
                     </div>
-                <?php else: ?>
-                    <div class="alert alert-warning">Data BSJ tidak tersedia.</div>
-                <?php endif; ?>
-                <?php if (!empty($perintahKerja)): ?>
-                    <div class="mb-2">
-                        <strong>Tanggal:</strong> <?= esc($perintahKerja['tanggal'] ?? '-') ?><br>
-                        <strong>Jumlah Kulit:</strong> <?= esc($perintahKerja['jumlah_kulit'] ?? 0) ?><br>
-                        <strong>Jumlah Ayam:</strong> <?= esc($perintahKerja['jumlah_ayam'] ?? 0) ?><br>
-                        <strong>Jumlah Sapi:</strong> <?= esc($perintahKerja['jumlah_sapi'] ?? 0) ?><br>
-                        <strong>Total Biaya:</strong> Rp <?= number_format($perintahKerja['total_biaya'] ?? 0, 0, ',', '.') ?><br>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header font-weight-bold">Kebutuhan Bahan yang Perlu Dibeli</div>
+                    <div class="card-body">
+                        <?php if (!empty($data['rangkuman_bahan'])): ?>
+                            <table class="table table-bordered table-hover table-sm">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Nama Bahan</th>
+                                        <th>Kategori</th>
+                                        <th>Jumlah</th>
+                                        <th>Satuan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($data['rangkuman_bahan'] as $i => $bahan): ?>
+                                        <tr>
+                                            <td><?= $i + 1 ?></td>
+                                            <td><?= esc($bahan['nama'] ?? '-') ?></td>
+                                            <td><?= esc($bahan['kategori'] ?? '-') ?></td>
+                                            <td><?= esc($bahan['jumlah'] ?? '0') ?></td>
+                                            <td><?= esc($bahan['satuan'] ?? '-') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php else: ?>
+                            <div class="alert alert-success mt-3">Semua kebutuhan bahan tersedia, tidak ada kekurangan.</div>
+                        <?php endif; ?>
                     </div>
-                <?php endif; ?>
+                </div>
             <?php elseif (strpos($isi, 'permintaan') !== false): ?>
                 <h6 class="text-primary">Detail Permintaan</h6>
                 <p>Silakan cek halaman <a href="<?= base_url('permintaan') ?>">Permintaan</a> untuk menindaklanjuti.</p>

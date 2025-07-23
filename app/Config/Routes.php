@@ -229,11 +229,13 @@ $routes->post('admin/komposisi/update', 'Admin::updateKomposisi', ['filter' => '
 $routes->get('admin/komposisi/hapus/(:num)', 'Admin::hapusKomposisi/$1', ['filter' => 'role:admin']);
 
 // ADMIN PERINTAH KERJA PRODUKSI BSJ
-$routes->get('admin/perintah-kerja', 'Admin::perintahKerjaIndex', ['filter' => 'role:admin']);
-$routes->get('admin/perintah-kerja/input', 'Admin::perintahKerjaInput', ['filter' => 'role:admin']);
-$routes->post('admin/perintah-kerja/simpan', 'Admin::perintahKerjaSimpan', ['filter' => 'role:admin']);
-$routes->get('admin/perintah-kerja/detail/(:num)', 'Admin::perintahKerjaDetail/$1', ['filter' => 'role:admin']);
-$routes->get('admin/perintah-kerja/hapus/(:num)', 'Admin::perintahKerjaHapus/$1', ['filter' => 'role:admin']);
+$routes->group('admin/perintah-kerja', ['filter' => 'role:admin'], function ($routes) {
+    $routes->get('/', 'Admin::perintahKerjaIndex');
+    $routes->get('input', 'Admin::perintahKerjaInput');
+    $routes->post('simpan', 'Admin::perintahKerjaSimpan');
+    $routes->get('detail/(:num)', 'Admin::perintahKerjaDetail/$1');
+    $routes->get('hapus/(:num)', 'Admin::perintahKerjaHapus/$1');
+});
 
 // PRODUKSI PEMBELIAN
 $routes->group('produksi', ['filter' => 'role:produksi,admin'], function ($routes) {

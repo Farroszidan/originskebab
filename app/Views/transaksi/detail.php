@@ -141,70 +141,99 @@
                 <div class="card mb-4">
                     <div class="card-header font-weight-bold">Daftar Produksi</div>
                     <div class="card-body">
-                        <table class="table table-bordered">
-                            <thead>
-                                <tr>
-                                    <th>BSJ</th>
-                                    <th>Jumlah</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Kulit Kebab</td>
-                                    <td><?= esc($data['jumlah_kulit'] ?? '0') ?></td>
-                                </tr>
-                                <tr>
-                                    <td>Olahan Daging Ayam</td>
-                                    <td><?= esc($data['jumlah_ayam'] ?? '0') ?></td>
-                                </tr>
-                                <tr>
-                                    <td>Olahan Daging Sapi</td>
-                                    <td><?= esc($data['jumlah_sapi'] ?? '0') ?></td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <?php if (!empty($data['daftar_produksi'])): ?>
+                            <table class="table table-bordered table-hover table-sm">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Nama</th>
+                                        <th>Jumlah</th>
+                                        <th>Satuan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($data['daftar_produksi'] as $i => $prod): ?>
+                                        <tr>
+                                            <td><?= $i + 1 ?></td>
+                                            <td><?= esc($prod['nama'] ?? '-') ?></td>
+                                            <td><?= esc($prod['jumlah'] ?? '0') ?></td>
+                                            <td><?= esc($prod['satuan'] ?? '-') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php else: ?>
+                            <div class="alert alert-warning mt-3">Tidak ada data produksi.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
-                <?php $totalBiaya = 0; ?>
-
-                <?php if (!empty($detail)): ?>
-                    <div class="table-responsive mt-3">
-                        <table class="table table-bordered table-hover table-sm">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th>No</th>
-                                    <th>Nama Bahan</th>
-                                    <th>Jumlah</th>
-                                    <th>Satuan</th>
-                                    <th>Harga Satuan</th>
-                                    <th>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($detail as $i => $item):
-                                    $subtotal = ($item['jumlah'] ?? 0) * ($item['harga_satuan'] ?? 0);
-                                    $totalBiaya += $subtotal;
-                                ?>
+                <div class="card mb-4">
+                    <div class="card-header font-weight-bold">Kebutuhan Bahan yang Perlu Dibeli</div>
+                    <div class="card-body">
+                        <?php
+                        $bahanModel = new \App\Models\BahanModel();
+                        $kekuranganList = [];
+                        if (!empty($data['rangkuman_bahan'])) {
+                            foreach ($data['rangkuman_bahan'] as $bahan) {
+                                $stok = 0;
+                                $bahanDb = $bahanModel->where('nama', $bahan['nama'])->where('satuan', $bahan['satuan'])->first();
+                                if ($bahanDb && isset($bahanDb['stok'])) {
+                                    $stok = $bahanDb['stok'];
+                                    // Jika satuan kg/liter, tampilkan stok dalam satuan kg/liter (bukan gram/ml)
+                                    $satuan_lc = strtolower($bahan['satuan']);
+                                    if ($satuan_lc === 'kg' || $satuan_lc === 'liter' || $satuan_lc === 'ltr') {
+                                        $stok = $stok / 1000;
+                                    }
+                                }
+                                $kurang = $bahan['jumlah'] - $stok;
+                                if ($kurang > 0) {
+                                    $pembulatan = ceil($kurang);
+                                    $kekuranganList[] = [
+                                        'nama' => $bahan['nama'],
+                                        'kategori' => $bahan['kategori'],
+                                        'jumlah' => $bahan['jumlah'],
+                                        'satuan' => $bahan['satuan'],
+                                        'stok' => $stok,
+                                        'kurang' => $kurang,
+                                        'pembulatan' => $pembulatan
+                                    ];
+                                }
+                            }
+                        }
+                        ?>
+                        <?php if (!empty($kekuranganList)): ?>
+                            <table class="table table-bordered table-hover table-sm">
+                                <thead class="thead-dark">
                                     <tr>
-                                        <td><?= $i + 1 ?></td>
-                                        <td><?= esc($item['nama_bahan'] ?? '-') ?></td>
-                                        <td><?= esc($item['jumlah'] ?? '0') ?></td>
-                                        <td><?= esc($item['satuan'] ?? '-') ?></td>
-                                        <td>Rp <?= number_format($item['harga_satuan'] ?? 0, 0, ',', '.') ?></td>
-                                        <td>Rp <?= number_format($subtotal, 0, ',', '.') ?></td>
+                                        <th>Nama</th>
+                                        <th>Kategori</th>
+                                        <th>Jumlah Dibutuhkan</th>
+                                        <th>Satuan</th>
+                                        <th>Stok Tersedia</th>
+                                        <th>Kekurangan</th>
+                                        <th>Pembulatan</th>
                                     </tr>
-                                <?php endforeach; ?>
-                                <tr class="table-info font-weight-bold">
-                                    <td colspan="5" class="text-right">Total Biaya Bahan</td>
-                                    <td>Rp <?= number_format($totalBiaya, 0, ',', '.') ?></td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($kekuranganList as $row): ?>
+                                        <tr>
+                                            <td><?= esc($row['nama']) ?></td>
+                                            <td><?= esc($row['kategori']) ?></td>
+                                            <td><?= esc(number_format($row['jumlah'], 2)) ?></td>
+                                            <td><?= esc($row['satuan']) ?></td>
+                                            <td><?= esc(number_format($row['stok'], 2)) ?></td>
+                                            <td><strong><?= esc(number_format($row['kurang'], 2)) ?></strong></td>
+                                            <td><strong><?= esc(number_format($row['pembulatan'], 0)) ?></strong></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        <?php else: ?>
+                            <div class="alert alert-success mt-3">Semua kebutuhan bahan tersedia, tidak ada kekurangan.</div>
+                        <?php endif; ?>
                     </div>
-                <?php else: ?>
-                    <div class="alert alert-warning mt-3">Tidak ada kebutuhan bahan.</div>
-                <?php endif; ?>
+                </div>
             <?php else: ?>
                 <div class="alert alert-danger">Data tidak tersedia.</div>
             <?php endif; ?>
