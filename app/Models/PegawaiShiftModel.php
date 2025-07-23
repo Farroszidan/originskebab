@@ -8,7 +8,7 @@ class PegawaiShiftModel extends Model
 {
     protected $table = 'pegawai_shift';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['user_id', 'shift_id', 'tanggal', 'jam_mulai', 'jam_selesai'];
+    protected $allowedFields = ['user_id', 'shift_id', 'tanggal', 'jam_mulai', 'jam_selesai', 'foto_absensi'];
 
     public function getShiftByOutletAndDate($outletId, $tanggal)
     {

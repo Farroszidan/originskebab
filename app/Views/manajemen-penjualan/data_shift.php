@@ -59,6 +59,7 @@
                             <th>Jam Mulai</th>
                             <th>Jam Selesai</th>
                             <?php if (in_groups('admin')): ?>
+                                <th>Foto Absensi</th>
                                 <th style="width: 100px;">Aksi</th>
                             <?php endif; ?>
                         </tr>
@@ -75,6 +76,15 @@
                                     <td><?= esc($row['jam_mulai']) ?></td>
                                     <td><?= esc($row['jam_selesai']) ?></td>
                                     <?php if (in_groups('admin')): ?>
+                                        <td>
+                                            <?php if (!empty($row['foto_absensi'])) : ?>
+                                                <a href="<?= base_url($row['foto_absensi']) ?>" target="_blank">
+                                                    <img src="<?= base_url($row['foto_absensi']) ?>" alt="Foto Absensi" width="80" height="80">
+                                                </a>
+                                            <?php else : ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif ?>
+                                        </td>
                                         <td>
                                             <a href="<?= base_url('manajemen-penjualan/delete-shift/' . $row['id']) ?>"
                                                 class="btn btn-sm btn-outline-danger btn-block"

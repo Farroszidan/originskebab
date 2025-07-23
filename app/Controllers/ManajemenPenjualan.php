@@ -476,6 +476,7 @@ class ManajemenPenjualan extends BaseController
         }
 
         $outlet_id = in_groups('admin') ? $this->request->getPost('outlet_id') : user()->outlet_id;
+        $logStokModel = new \App\Models\LogStokOutletModel();
 
         $postData = $this->request->getPost();
         $postData['grand_total'] = str_replace('.', '', $postData['grand_total'] ?? '0');
@@ -544,6 +545,7 @@ class ManajemenPenjualan extends BaseController
         $detailModel = new DetailJualModel();
         $menuModel = new MenuPenjualanModel();
         $persediaanModel = new PersediaanOutletModel();
+        // $logModel = new \App\Models\LogPersediaanHarianModel();
         $db = \Config\Database::connect();
         $db->transStart();
 
@@ -716,10 +718,58 @@ class ManajemenPenjualan extends BaseController
                     // Jumlah total yang dipakai
                     $totalPakai = round($qty * $jumlah, 2); // ✅ Pembulatan 2 angka desimal
 
+
                     if (!$persediaanModel->kurangiStok($outlet_id, $kodeBahan, $totalPakai)) {
                         $db->transRollback();
                         return redirect()->back()->with('error', 'Stok tidak cukup untuk bahan ' . $kodeBahan . ' pada menu ' . $menu['nama_menu']);
                     }
+                    $bahanModel = new \App\Models\BahanModel();
+                    $bsjModel   = new \App\Models\BSJModel();
+
+                    // Coba ambil dari tabel bahan
+                    try {
+                        $dataBahan = $bahanModel->where('kode', $kodeBahan)->first();
+                    } catch (\Throwable $e) {
+                        $db->transRollback();
+                        return redirect()->back()->with('error', 'Gagal ambil bahan: ' . $e->getMessage());
+                    }
+
+                    if ($dataBahan) {
+                        $bahanId = $dataBahan['id'];
+                        $namaBahanAsli = $dataBahan['nama']; // ✅ Ubah dari 'nama_bahan'
+                    } else {
+                        // Jika tidak ada di bahan, coba dari bsj
+                        try {
+                            $dataBsj = $bsjModel->where('kode', $kodeBahan)->first();
+                        } catch (\Throwable $e) {
+                            $db->transRollback();
+                            return redirect()->back()->with('error', 'Gagal ambil BSJ: ' . $e->getMessage());
+                        }
+
+                        if ($dataBsj) {
+                            $bahanId = $dataBsj['id'];
+                            $namaBahanAsli = $dataBsj['nama']; // ✅ Ubah dari 'nama_bsj'
+                        } else {
+                            // Gagal menemukan di kedua tabel
+                            $bahanId = null;
+                            $namaBahanAsli = $namaBahan;
+                        }
+                    }
+
+                    if (is_null($bahanId)) {
+                        $db->transRollback();
+                        return redirect()->back()->with('error', 'Gagal menyimpan log stok: bahan tidak ditemukan di tabel bahan atau bsj. Kode: ' . $kodeBahan);
+                    }
+
+                    $logStokModel->insert([
+                        'outlet_id'   => $outlet_id,
+                        'bahan_id'    => $bahanId,
+                        'nama_bahan'  => $namaBahanAsli,
+                        'tanggal'     => $postData['tgl_jual'],
+                        'tipe'        => 'keluar',
+                        'jumlah'      => $totalPakai,
+                        'keterangan'  => 'Penjualan menu ' . $menu['nama_menu'],
+                    ]);
                 }
             }
 
@@ -883,7 +933,7 @@ class ManajemenPenjualan extends BaseController
             : user()->outlet_id;
 
         $persediaanModel = new \App\Models\PersediaanOutletModel();
-        $logMasukModel   = new \App\Models\LogPersediaanMasukModel();
+        $logStokOutletModel = new \App\Models\LogStokOutletModel();
 
         // 🔁 MODE: PRODUKSI SIGNATURE SAUCE
         if ($mode === 'produksi_signature_sauce') {
@@ -931,13 +981,13 @@ class ManajemenPenjualan extends BaseController
             $kodeSaus = 'SS01';
             $persediaanModel->tambahStok($outlet_id, $kodeSaus, $jumlahProduksi, $tanggal);
 
-            $logMasukModel->insert([
-                'outlet_id'   => $outlet_id,
-                'kode_bahan' => $kodeSaus,
-                'jumlah'     => $jumlahProduksi,
+            $logStokOutletModel->insert([
+                'outlet_id'  => $outlet_id,
+                'bahan_id'   => $kodeSaus,
                 'tanggal'    => $tanggal,
-                'created_at' => date('Y-m-d H:i:s'),
-                'keterangan' => 'Produksi Signature Sauce'
+                'tipe'       => 'masuk',
+                'jumlah'     => $jumlahProduksi,
+                'keterangan' => 'Hasil produksi Signature Sauce',
             ]);
 
             return redirect()->to('manajemen-penjualan/persediaanOutlet')
@@ -983,12 +1033,14 @@ class ManajemenPenjualan extends BaseController
 
         $persediaanModel->tambahStok($outlet_id, $kode, $jumlah, $tanggal);
 
-        $logMasukModel->insert([
-            'outlet_id'   => $outlet_id,
-            'kode_bahan' => $kode,
-            'jumlah'     => $jumlah,
+        $logStokOutletModel->insert([
+            'outlet_id'  => $outlet_id,
+            'bahan_id'   => $bahan['id'],
+            'nama_bahan'  => $bahan['nama'],
             'tanggal'    => $tanggal,
-            'created_at' => date('Y-m-d H:i:s'),
+            'tipe'       => $mode === 'stok_awal' ? 'stok_awal' : 'masuk',
+            'jumlah'     => $jumlah,
+            'keterangan' => $mode === 'stok_awal' ? 'Input stok awal outlet' : 'Penambahan stok biasa',
         ]);
 
         return redirect()->to('manajemen-penjualan/persediaanOutlet')
@@ -1243,46 +1295,64 @@ class ManajemenPenjualan extends BaseController
         $tanggalAkhir = $this->request->getGet('tanggal_akhir');
         $outletId = $this->request->getGet('outlet_id');
 
-        // Ambil laporan yang sesuai periode
-        $query = $this->laporanModel
-            ->where('tanggal >=', $tanggalAwal)
-            ->where('tanggal <=', $tanggalAkhir);
-
-        if ($outletId) {
-            $query->where('outlet_id', $outletId);
-        }
-
-        $db = \Config\Database::connect();
-        $builder = $db->table('laporan_penjualan');
-        $builder->select('laporan_penjualan.*, outlet.nama_outlet');
-        $builder->join('outlet', 'outlet.id = laporan_penjualan.outlet_id');
+        // Ambil total dari tabel laporan_penjualan
+        $builder = $this->db->table('laporan_penjualan');
+        $builder->select('SUM(total_penjualan) as total_penjualan, SUM(total_pengeluaran) as total_pengeluaran');
         $builder->where('tanggal >=', $tanggalAwal);
         $builder->where('tanggal <=', $tanggalAkhir);
-
         if ($outletId) {
-            $builder->where('laporan_penjualan.outlet_id', $outletId);
+            $builder->where('outlet_id', $outletId);
         }
+        $laporan = $builder->get()->getRow();
 
-        $builder->orderBy('tanggal', 'ASC');
-        $builder->orderBy('outlet_id', 'ASC');
-
-        $laporan = $builder->get()->getResultArray();
-
-        // Hitung total
-        $grandTotalPenjualan = array_sum(array_column($laporan, 'total_penjualan'));
-        $grandTotalPengeluaran = array_sum(array_column($laporan, 'total_pengeluaran'));
+        $grandTotalPenjualan = $laporan->total_penjualan ?? 0;
+        $grandTotalPengeluaran = $laporan->total_pengeluaran ?? 0;
         $grandTotalLaba = $grandTotalPenjualan - $grandTotalPengeluaran;
 
+        $jualBuilder = $this->db->table('detail_jual');
+        $jualBuilder->select('
+    jual.tgl_jual,
+    jual.jam_jual,
+    outlet.nama_outlet,
+    jual.nama_kasir,
+    detail_jual.kode_menu,
+    detail_jual.nama_menu,
+    detail_jual.harga,
+    detail_jual.qty,
+    detail_jual.total_harga,
+    detail_jual.add_ons,
+    detail_jual.extra
+');
+        $jualBuilder->join('jual', 'jual.id = detail_jual.id_jual');
+        $jualBuilder->join('outlet', 'outlet.id = jual.outlet_id');
+
+        $jualBuilder->where('jual.tgl_jual >=', $tanggalAwal);
+        $jualBuilder->where('jual.tgl_jual <=', $tanggalAkhir);
+
+        if ($outletId) {
+            $jualBuilder->where('jual.outlet_id', $outletId);
+        }
+
+        $jualBuilder->orderBy('jual.tgl_jual', 'ASC');
+        $jualBuilder->orderBy('jual.jam_jual', 'ASC');
+
+        $detailPenjualan = $jualBuilder->get()->getResultArray();
+
         return view('manajemen-penjualan/cetak_laporan_penjualan', [
-            'laporan' => $laporan,
-            'tanggalAwal' => $tanggalAwal,
-            'tanggalAkhir' => $tanggalAkhir,
             'grandTotalPenjualan' => $grandTotalPenjualan,
             'grandTotalPengeluaran' => $grandTotalPengeluaran,
             'grandTotalLaba' => $grandTotalLaba,
+            'detailPenjualan' => $detailPenjualan,
+            'tanggalAwal' => $tanggalAwal,
+            'tanggalAkhir' => $tanggalAkhir,
             'outletId' => $outletId,
         ]);
     }
+
+
+
+
+
 
     public function hapusLaporan()
     {
@@ -1705,7 +1775,7 @@ class ManajemenPenjualan extends BaseController
 
         // Mulai query builder
         $builder = $pegawaiShiftModel
-            ->select('pegawai_shift.*, users.username, shift_kerja.nama_shift, shift_kerja.jam_mulai, shift_kerja.jam_selesai, users.outlet_id, outlet.nama_outlet')
+            ->select('pegawai_shift.*, users.username, shift_kerja.nama_shift, shift_kerja.jam_mulai, shift_kerja.jam_selesai, users.outlet_id, outlet.nama_outlet, pegawai_shift.foto_absensi')
             ->join('users', 'users.id = pegawai_shift.user_id')
             ->join('shift_kerja', 'shift_kerja.id = pegawai_shift.shift_id')
             ->join('outlet', 'outlet.id = users.outlet_id')
@@ -1744,36 +1814,107 @@ class ManajemenPenjualan extends BaseController
 
     public function simpanShift()
     {
-        $userIds  = $this->request->getPost('user_id');
-        $shiftId  = $this->request->getPost('shift_id');
-        $tanggal  = $this->request->getPost('tanggal');
+        $userId     = $this->request->getPost('user_id');
+        $shiftId    = $this->request->getPost('shift_id');
+        $tanggal    = $this->request->getPost('tanggal');
+        $fotoBase64 = $this->request->getPost('foto_absensi');
 
-        // Pastikan $userIds adalah array
-        if (!is_array($userIds)) {
-            $userIds = [$userIds];
-        }
-
-        // Validasi shift
         $shiftModel = new \App\Models\ShiftKerjaModel();
         $shift = $shiftModel->find($shiftId);
         if (!$shift) {
             return redirect()->back()->with('error', 'Shift tidak ditemukan');
         }
 
-        $pegawaiShiftModel = new \App\Models\PegawaiShiftModel();
-
-        foreach ($userIds as $userId) {
-            $pegawaiShiftModel->insert([
-                'user_id'     => $userId,
-                'shift_id'    => $shiftId,
-                'tanggal'     => $tanggal,
-                'jam_mulai'   => $shift['jam_mulai'],
-                'jam_selesai' => $shift['jam_selesai'],
-            ]);
+        // Ambil nama outlet dari user
+        $userModel = new \App\Models\UserModel();
+        $user = $userModel->asArray()->find($userId);
+        if (!$user) {
+            return redirect()->back()->with('error', 'User tidak ditemukan');
         }
+
+        $outletModel = new \App\Models\OutletModel();
+        $outlet = $outletModel->find($user['outlet_id']);
+        $namaOutlet = $outlet ? $outlet['nama_outlet'] : 'Outlet Tidak Diketahui';
+
+        $fotoPath = null;
+
+        if ($fotoBase64 && strpos($fotoBase64, 'data:image') === 0) {
+            try {
+                [$type, $data] = explode(';', $fotoBase64);
+                [, $data] = explode(',', $data);
+                $imageData = base64_decode($data);
+
+                $waktu  = date('Y-m-d H:i:s');
+                $lokasi = $namaOutlet;
+
+                $textWatermark = "Waktu: $waktu\nLokasi: $lokasi";
+
+                $watermarkedImageData = $this->tambahkanWatermark($imageData, $textWatermark);
+                if (!$watermarkedImageData) {
+                    return redirect()->back()->with('error', 'Gagal memproses watermark.');
+                }
+
+                $namaFile = 'absensi_' . time() . '_' . rand(1000, 9999) . '.jpg';
+                $folder = FCPATH . 'uploads/absensi/';
+                if (!is_dir($folder)) {
+                    mkdir($folder, 0755, true);
+                }
+
+                file_put_contents($folder . $namaFile, $watermarkedImageData);
+                $fotoPath = 'uploads/absensi/' . $namaFile;
+            } catch (\Throwable $e) {
+                return redirect()->back()->with('error', 'Gagal menyimpan foto absensi: ' . $e->getMessage());
+            }
+        }
+
+        $pegawaiShiftModel = new \App\Models\PegawaiShiftModel();
+        $pegawaiShiftModel->insert([
+            'user_id'      => $userId,
+            'shift_id'     => $shiftId,
+            'tanggal'      => $tanggal,
+            'jam_mulai'    => $shift['jam_mulai'],
+            'jam_selesai'  => $shift['jam_selesai'],
+            'foto_absensi' => $fotoPath,
+        ]);
 
         return redirect()->to('manajemen-penjualan/input-shift')->with('success', 'Shift berhasil disimpan');
     }
+
+
+    private function tambahkanWatermark($imageData, $text)
+    {
+        $image = imagecreatefromstring($imageData);
+        if (!$image) return false;
+
+        $font = 5; // Ukuran font GD: 1(small) - 5(large)
+        $margin = 10;
+        $textColor = imagecolorallocate($image, 255, 255, 255); // Putih
+        $shadowColor = imagecolorallocate($image, 0, 0, 0); // Hitam
+
+        $lines = explode("\n", $text);
+        $y = imagesy($image) - $margin;
+
+        foreach (array_reverse($lines) as $line) {
+            $textWidth = imagefontwidth($font) * strlen($line);
+            $textHeight = imagefontheight($font);
+            $x = $margin;
+            $y -= $textHeight + 4;
+
+            // Bayangan
+            imagestring($image, $font, $x + 1, $y + 1, $line, $shadowColor);
+            // Teks
+            imagestring($image, $font, $x, $y, $line, $textColor);
+        }
+
+        ob_start();
+        imagejpeg($image);
+        $output = ob_get_clean();
+        imagedestroy($image);
+
+        return $output;
+    }
+
+
 
 
     public function getUsersByOutlet($outletId)
@@ -2141,76 +2282,51 @@ class ManajemenPenjualan extends BaseController
 
     // ===================================== HPP PENJUALAN START ===================================================== //
     // Hpp Penjualan
-    public function hppPenjualan()
+    public function hpp()
     {
-        $start = $this->request->getGet('start');
-        $end   = $this->request->getGet('end');
-
-        if ($start && $end) {
-            $hppBsjModel        = new HPPModel();
-            $btklModel          = new BtklModel();
-            $operasionalModel   = new PembelianOperasionalModel();
-
-            // 1. Total biaya produksi dari hpp_bsj
-            $total_biaya_hpp = $hppBsjModel
-                ->where('created_at >=', $start)
-                ->where('created_at <=', $end)
-                ->selectSum('total_biaya')
-                ->first()['total_biaya'] ?? 0;
-
-            // 2. Total produksi dari hpp_bsj
-            $total_produksi = $hppBsjModel
-                ->where('created_at >=', $start)
-                ->where('created_at <=', $end)
-                ->selectSum('jumlah_produksi')
-                ->first()['jumlah_produksi'] ?? 0;
-
-            // 3. Total gaji dari tabel btkl
-            $total_btkl = $btklModel
-                ->where('created_at >=', $start)
-                ->where('created_at <=', $end)
-                ->selectSum('total_gaji')
-                ->first()['total_gaji'] ?? 0;
-
-            // 4. Total pembelian operasional
-            $total_operasional = $operasionalModel
-                ->where('tanggal >=', $start)
-                ->where('tanggal <=', $end)
-                ->selectSum('total')
-                ->first()['total'] ?? 0;
-
-            // 5. Hitung jumlah hari
-            $days = (new Time($start))->difference(new Time($end))->getDays() + 1;
-
-            // 6. Hitung total biaya keseluruhan
-            $total_semua_biaya = $total_biaya_hpp + $total_btkl + $total_operasional;
-
-            // 7. Hitung HPP Harian
-            $hpp_per_hari = $days > 0 ? $total_semua_biaya / 30 : 0;
-
-            // 8. Hitung HPP Penjualan per porsi
-            $hpp_per_porsi = $total_produksi > 0 ? $hpp_per_hari / $total_produksi : 0;
-
-            return view('manajemen-penjualan/hpp_penjualan', [
-                'tittle'              => 'HPP Penjualan',
-                'start'               => $start,
-                'end'                 => $end,
-                'days'                => $days,
-                'total_biaya_hpp'     => $total_biaya_hpp,
-                'total_produksi'      => $total_produksi,
-                'total_btkl'          => $total_btkl,
-                'total_operasional'   => $total_operasional,
-                'total_semua_biaya'   => $total_semua_biaya,
-                'hpp_per_hari'        => $hpp_per_hari,
-                'hpp_per_porsi'       => $hpp_per_porsi,
-            ]);
+        if (!in_groups(['admin', 'penjualan'])) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
         }
 
-        // Jika belum ada filter tanggal, tetap tampilkan form
+        $logModel = new \App\Models\LogStokOutletModel();
+
+        $outlet_id = user()->outlet_id ?? 1; // fallback ke 1 jika tidak ada
+        $tanggal_awal = $this->request->getGet('tanggal_awal') ?? date('Y-m-01');
+        $tanggal_akhir = $this->request->getGet('tanggal_akhir') ?? date('Y-m-d');
+
+        $dataHPP = $logModel->getHPPData($outlet_id, $tanggal_awal, $tanggal_akhir);
+
+        // Hitung total keseluruhan
+        $total_stok_awal = 0;
+        $total_stok_masuk = 0;
+        $total_total_masuk = 0;
+        $total_total_keluar = 0;
+
+        foreach ($dataHPP as $row) {
+            $total_stok_awal += $row['stok_awal'];
+            $total_stok_masuk += $row['stok_masuk'];
+            $total_total_masuk += $row['total_masuk'];
+            $total_total_keluar += $row['total_keluar'];
+        }
+
+        $stok_akhir = $total_total_masuk - $total_total_keluar;
+        $hpp = ($total_stok_awal + $total_stok_masuk) - $stok_akhir;
+
         return view('manajemen-penjualan/hpp_penjualan', [
-            'tittle' => 'HPP Penjualan'
+            'tittle'              => 'Harga Pokok Penjualan',
+            'dataHPP'             => $dataHPP,
+            'tanggal_awal'        => $tanggal_awal,
+            'tanggal_akhir'       => $tanggal_akhir,
+            'total_stok_awal'     => $total_stok_awal,
+            'total_stok_masuk'    => $total_stok_masuk,
+            'total_total_masuk'   => $total_total_masuk,
+            'total_total_keluar'  => $total_total_keluar,
+            'stok_akhir'          => $stok_akhir,
+            'hpp'                 => $hpp,
         ]);
     }
+
+
 
     public function simpanHppPenjualan()
     {

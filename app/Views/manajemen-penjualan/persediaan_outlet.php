@@ -57,6 +57,13 @@
                     <input type="number" name="jumlah" class="form-control" step="0.01" required>
                     <small class="form-text text-muted">Masukkan dalam kilogram (Kg) atau pcs</small>
                 </div>
+                <div class="form-group col-md-4">
+                    <label for="mode">Tipe Persediaan</label>
+                    <select name="mode" class="form-control" required>
+                        <option value="masuk">Masuk (Tambahan)</option>
+                        <option value="stok_awal">Stok Awal</option>
+                    </select>
+                </div>
             </div>
 
             <button type="submit" class="btn btn-primary mt-2">Simpan</button>

@@ -94,6 +94,8 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan'], func
     $routes->match(['get', 'post'], 'btkl/form', 'ManajemenPenjualan::btklForm');
 
     $routes->get('btkl', 'ManajemenPenjualan::btkl');
+
+    $routes->get('hpp', 'ManajemenPenjualan::hpp');
 });
 
 
