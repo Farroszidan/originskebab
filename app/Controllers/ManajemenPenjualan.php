@@ -26,6 +26,7 @@ use App\Models\BahanModel;
 use App\Models\HPPModel;
 use App\Models\BtklModel;
 use App\Models\AkunModel;
+use App\Models\JadwalPegawaiModel;
 use CodeIgniter\I18n\Time;
 use Myth\Auth\Authorization\GroupModel;
 use function auth;
@@ -1914,9 +1915,6 @@ class ManajemenPenjualan extends BaseController
         return $output;
     }
 
-
-
-
     public function getUsersByOutlet($outletId)
     {
         $db = \Config\Database::connect();
@@ -2363,4 +2361,115 @@ class ManajemenPenjualan extends BaseController
         return redirect()->back()->with('success', 'Data HPP Penjualan berhasil disimpan.');
     }
     // ===================================== HPP PENJUALAN START ===================================================== //
+
+    // =======================================
+    public function jadwalPegawai()
+    {
+        if (!in_groups(['admin', 'penjualan'])) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+
+        $jadwalModel = new JadwalPegawaiModel();
+        $outletModel = new \App\Models\OutletModel(); // Tambahan jika ingin menampilkan list outlet di view
+        $user = user();
+
+        // Ambil filter dari GET
+        $tanggalAwal = $this->request->getGet('tanggal_awal');
+        $tanggalAkhir = $this->request->getGet('tanggal_akhir');
+        $outletId = $this->request->getGet('outlet_id');
+
+        // Query dasar
+        $jadwalQuery = $jadwalModel
+            ->select('jadwal_pegawai.*, users.username, shift_kerja.jam_mulai, shift_kerja.jam_selesai, outlet.nama_outlet')
+            ->join('users', 'users.id = jadwal_pegawai.user_id')
+            ->join('shift_kerja', 'shift_kerja.id = jadwal_pegawai.shift_id')
+            ->join('outlet', 'outlet.id = jadwal_pegawai.outlet_id', 'left');
+
+        // Filter tanggal jika tersedia
+        if ($tanggalAwal && $tanggalAkhir) {
+            $jadwalQuery->where('tanggal >=', $tanggalAwal)
+                ->where('tanggal <=', $tanggalAkhir);
+        }
+
+        // Filter outlet jika tersedia
+        if ($outletId && $outletId != 'all') {
+            $jadwalQuery->where('jadwal_pegawai.outlet_id', $outletId);
+        }
+
+        // Ambil hasil dengan order
+        $jadwal = $jadwalQuery->orderBy('tanggal', 'ASC')->findAll();
+
+        $data = [
+            'tittle' => 'Jadwal Pegawai',
+            'jadwal' => $jadwal,
+            'outlets' => $outletModel->findAll(), // untuk dropdown outlet di view
+            'filter' => [
+                'tanggal_awal' => $tanggalAwal,
+                'tanggal_akhir' => $tanggalAkhir,
+                'outlet_id' => $outletId
+            ]
+        ];
+
+        return view('manajemen-penjualan/jadwal_pegawai', $data);
+    }
+
+
+    public function formTambahJadwal()
+    {
+        $userModel   = new UserModel();
+        $shiftModel  = new ShiftKerjaModel();
+        $outletModel = new OutletModel();
+        $outlet_id = user()->outlet_id;
+
+        // Ambil semua outlet
+        $outletList = $outletModel->findAll();
+
+        // Ambil semua shift
+        $shiftList = $shiftModel->findAll();
+
+        // Ambil semua pegawai (penjualan)
+        $pegawai = $userModel
+            ->select('users.id, users.username, users.outlet_id, outlet.nama_outlet')
+            ->join('outlet', 'outlet.id = users.outlet_id', 'left')
+            ->where('users.outlet_id IS NOT NULL')
+            ->asArray()
+            ->findAll();
+
+        $data = [
+            'tittle'      => 'Tambah Jadwal Pegawai',
+            'pegawai'     => $pegawai,
+            'shift'       => $shiftList,
+            'outletList'  => $outletList,
+        ];
+
+        return view('manajemen-penjualan/tambah_jadwal', $data);
+    }
+
+    public function simpanJadwal()
+    {
+        $jadwalModel = new \App\Models\JadwalPegawaiModel();
+        $userModel = new UserModel();
+
+        $tanggal     = $this->request->getPost('tanggal');
+        $outlet_id   = $this->request->getPost('outlet_id');
+        $user_ids    = $this->request->getPost('user_id');
+        $shift_ids   = $this->request->getPost('shift_id');
+
+        if (!$tanggal || !$outlet_id || empty($user_ids) || empty($shift_ids)) {
+            return redirect()->back()->withInput()->with('error', 'Semua data harus diisi.');
+        }
+
+        foreach ($user_ids as $i => $user_id) {
+            $data = [
+                'tanggal'   => $tanggal,
+                'outlet_id' => $outlet_id,
+                'user_id'   => $user_id,
+                'shift_id'  => $shift_ids[$i]
+            ];
+
+            $jadwalModel->insert($data);
+        }
+
+        return redirect()->to('/manajemen-penjualan/jadwalpegawai')->with('success', 'Jadwal berhasil ditambahkan.');
+    }
 }

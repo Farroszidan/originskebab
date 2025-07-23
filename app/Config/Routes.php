@@ -96,6 +96,10 @@ $routes->group('manajemen-penjualan', ['filter' => 'role:admin,penjualan'], func
     $routes->get('btkl', 'ManajemenPenjualan::btkl');
 
     $routes->get('hpp', 'ManajemenPenjualan::hpp');
+
+    $routes->get('jadwalpegawai', 'ManajemenPenjualan::jadwalPegawai');
+    $routes->post('jadwalpegawai/simpan', 'ManajemenPenjualan::simpanJadwal');
+    $routes->get('jadwalpegawai/tambah', 'ManajemenPenjualan::formTambahJadwal');
 });
 
 
