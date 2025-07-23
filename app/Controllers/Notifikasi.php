@@ -87,18 +87,27 @@ class Notifikasi extends BaseController
             $this->notifikasiModel->update($id, ['dibaca' => 1]);
         }
 
-        $bsjList = [];
-        $perintahKerja = null;
+        $daftarProduksi = [];
+        $rangkumanBahan = [];
         $data = [];
 
         if ($notif['tipe'] === 'perintah_kerja' && !empty($notif['relasi_id'])) {
             $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+            $detailModel = new \App\Models\DetailPerintahKerjaModel();
             $perintahKerja = $perintahKerjaModel->find($notif['relasi_id']);
 
-            if ($perintahKerja && !empty($perintahKerja['bsj'])) {
-                $bsjList = is_string($perintahKerja['bsj'])
-                    ? json_decode($perintahKerja['bsj'], true)
-                    : $perintahKerja['bsj'];
+            if ($perintahKerja) {
+                // Ambil semua produksi dengan admin_id yang sama
+                $daftarProduksi = $perintahKerjaModel->where('admin_id', $perintahKerja['admin_id'])->findAll();
+                // Ambil rangkuman bahan dari salah satu id produksi (relasi_id)
+                $rangkumanBahan = $detailModel->where('perintah_kerja_id', $notif['relasi_id'])->findAll();
+                $data = [
+                    'tanggal' => $perintahKerja['tanggal'] ?? '',
+                    'catatan' => $perintahKerja['catatan'] ?? '',
+                    'daftar_produksi' => $daftarProduksi,
+                    'rangkuman_bahan' => $rangkumanBahan,
+                    'jenis' => 'perintah_kerja',
+                ];
             }
         } elseif ($notif['tipe'] === 'pengiriman' && !empty($notif['relasi_id'])) {
             $pengirimanModel = new \App\Models\PengirimanModel();
@@ -128,10 +137,8 @@ class Notifikasi extends BaseController
         return view('notifikasi/detail', [
             'tittle'         => 'SIOK | Detail Notifikasi',
             'notifikasi'     => $notif,
-            'bsj'            => $bsjList,
-            'perintahKerja'  => $perintahKerja,
             'data'           => $data,
-            'jenis'          => $data['jenis'],
+            'jenis'          => $data['jenis'] ?? null,
         ]);
     }
 }

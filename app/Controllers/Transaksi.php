@@ -308,52 +308,44 @@ class Transaksi extends BaseController
             case 'perintah_kerja':
                 $model = new \App\Models\PerintahKerjaModel();
                 $detailModel = new \App\Models\DetailPerintahKerjaModel();
-                $detail_bahan_raw = $detailModel->where('perintah_kerja_id', $id)->findAll();
-                $detail = [];
-                foreach ($detail_bahan_raw as $b) {
-                    $detail[] = [
-                        'nama_bahan' => $b['nama_bahan'] ?? '-',
-                        'kategori' => $b['kategori'] ?? '',
-                        'jumlah' => $b['jumlah'] ?? 0,
-                        'satuan' => $b['satuan'] ?? '',
-                        'harga_satuan' => $b['harga_satuan'] ?? 0,
-                        'subtotal' => $b['subtotal'] ?? 0,
+                $perintahKerja = $model->find($id);
+                $daftarProduksi = [];
+                $rangkumanBahan = [];
+                if ($perintahKerja) {
+                    $daftarProduksi = $model->where('admin_id', $perintahKerja['admin_id'])->findAll();
+                    $rangkumanBahan = $detailModel->where('perintah_kerja_id', $id)->findAll();
+                    $data = [
+                        'tanggal' => $perintahKerja['tanggal'] ?? '',
+                        'catatan' => $perintahKerja['catatan'] ?? '',
+                        'daftar_produksi' => $daftarProduksi,
+                        'rangkuman_bahan' => $rangkumanBahan,
+                        'jenis' => 'perintah_kerja',
                     ];
-                    $total_biaya_bahan += $b['subtotal'] ?? 0;
+                } else {
+                    $data = [];
                 }
-                // Ambil data BSJ dari field di perintah_kerja
-                $bsjList = [];
-                $dataTemp = $model->find($id);
-                if ($dataTemp && !empty($dataTemp['bsj'])) {
-                    if (is_string($dataTemp['bsj'])) {
-                        $bsjList = json_decode($dataTemp['bsj'], true);
-                    } elseif (is_array($dataTemp['bsj'])) {
-                        $bsjList = $dataTemp['bsj'];
-                    }
-                }
+                $detail = [];
                 break;
 
             default:
                 throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound("Jenis tidak dikenali.");
         }
 
-        $data = $model->find($id);
-
-        if (!$data) {
-            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound("Data tidak ditemukan.");
+        // Untuk perintah_kerja, $data sudah dibentuk di switch-case, jangan timpa
+        if ($jenis !== 'perintah_kerja') {
+            $data = $model->find($id);
         }
 
-        // Tambahkan data BSJ ke array data jika perintah_kerja
-        if ($jenis === 'perintah_kerja') {
-            $data['bsj'] = $bsjList;
+        if (empty($data)) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound("Data tidak ditemukan.");
         }
 
         return view('transaksi/detail', [
             'jenis'          => $jenis,
-            'data'  => $data,
-            'detail' => $detail,
+            'data'           => $data,
+            'detail'         => $detail,
             'total_biaya_bahan' => $total_biaya_bahan,
-            'tittle' => 'SIOK | Detail ' . ucfirst(str_replace('_', ' ', $jenis))
+            'tittle'         => 'SIOK | Detail ' . ucfirst(str_replace('_', ' ', $jenis))
         ]);
     }
 }
