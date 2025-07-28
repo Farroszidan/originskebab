@@ -386,6 +386,7 @@
                     <a class="collapse-item" href="<?= base_url('admin/biaya/view_bop'); ?>">Tambah BOP</a>
                     <a class="collapse-item" href="<?= base_url('admin/komposisi'); ?>">Komposisi</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/hpp'); ?>">Hpp</a>
+                    <a class="collapse-item" href="<?= base_url('manajemen-penjualan/jadwalpegawai'); ?>">Jadwal Pegawai</a>
 
                 </div>
             </div>
