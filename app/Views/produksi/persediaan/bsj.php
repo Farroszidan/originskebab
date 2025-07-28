@@ -32,13 +32,15 @@
                             <th>Nama</th>
                             <th>Stok</th>
                             <th>Satuan</th>
+                            <th>Harga</th>
+                            <th>Saldo</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($bsj)) : ?>
                             <tr>
-                                <td colspan="7" class="text-center">Belum ada data Barang Setengah Jadi</td>
+                                <td colspan="8" class="text-center">Belum ada data Barang Setengah Jadi</td>
                             </tr>
                         <?php else : ?>
                             <?php $no = 1;
@@ -55,6 +57,8 @@
                                         <?php endif; ?>
                                     </td>
                                     <td><?= esc($b['satuan']); ?></td>
+                                    <td>Rp <?= isset($b['harga']) ? number_format($b['harga'], 0, ',', '.') : '0' ?></td>
+                                    <td>Rp <?= isset($b['saldo']) ? number_format($b['saldo'], 0, ',', '.') : '0' ?></td>
                                     <td>
                                         <a href="<?= base_url('produksi/persediaan/edit_bsj/' . $b['id']); ?>" class="btn btn-warning btn-sm">Edit</a>
                                         <a href="<?= base_url('produksi/persediaan/delete_bsj/' . $b['id']); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus barang ini?');">Hapus</a>
@@ -66,5 +70,6 @@
                 </table>
             </div>
         </div>
-
-        <?= $this->endSection(); ?>
+    </div>
+</div>
+<?= $this->endSection(); ?>

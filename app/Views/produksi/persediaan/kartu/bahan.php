@@ -2,7 +2,7 @@
 <?= $this->section('page-content'); ?>
 <div class="container mt-4">
     <a href="<?= base_url('produksi/persediaan'); ?>" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Kembali</a>
-    <h4 class="mb-3">Kartu Persediaan Bahan</h4>
+    <h4 class="mb-3"><?= esc($tittle); ?></h4>
     <form method="get" action="<?= base_url('produksi/persediaan/kartu/bahan'); ?>" class="row g-3 mb-4">
         <div class="col-md-5">
             <label for="bahan_id">Pilih Bahan</label>
@@ -45,33 +45,43 @@
                 <tbody>
                     <?php
                     $no = 1;
-                    $saldo_qty = 0;
-                    $saldo_harga = 0;
+                    $saldo_qty = isset($saldo_awal_qty) ? $saldo_awal_qty : 0;
+                    $saldo_harga = isset($saldo_awal_harga) ? $saldo_awal_harga : 0;
+                    $satuan_awal = isset($satuan_awal) ? $satuan_awal : '';
+                    // Baris saldo awal dihapus sesuai permintaan
                     foreach ($kartu as $row) :
-                        $masuk_qty = ($row['jenis'] == 'masuk') ? $row['masuk_qty'] : 0;
-                        $keluar_qty = ($row['jenis'] == 'keluar') ? $row['keluar_qty'] : 0;
-                        $harga = $row['harga_satuan'] ?? 0;
                         $satuan = $row['satuan'] ?? '';
+                        $masuk_qty_raw = ($row['jenis'] == 'masuk') ? ($row['jumlah'] ?? 0) : 0;
+                        $keluar_qty_raw = ($row['jenis'] == 'keluar') ? ($row['jumlah'] ?? 0) : 0;
+                        if (in_array(strtolower($satuan), ['kg', 'liter'])) {
+                            $masuk_qty = $masuk_qty_raw / 1000;
+                            $keluar_qty = $keluar_qty_raw / 1000;
+                        } else {
+                            $masuk_qty = $masuk_qty_raw;
+                            $keluar_qty = $keluar_qty_raw;
+                        }
+                        $harga_satuan_masuk = ($row['jenis'] == 'masuk') ? ($row['harga_satuan'] ?? 0) : 0;
+                        $harga_satuan_keluar = ($row['jenis'] == 'keluar') ? ($row['harga_satuan'] ?? 0) : 0;
                         if ($row['jenis'] == 'masuk') {
                             $saldo_qty += $masuk_qty;
-                            $saldo_harga += $masuk_qty * $harga;
+                            $saldo_harga += $masuk_qty * $harga_satuan_masuk;
                         } else {
                             $saldo_qty -= $keluar_qty;
-                            $saldo_harga -= $keluar_qty * $harga;
+                            $saldo_harga -= $keluar_qty * $harga_satuan_keluar;
                         }
                     ?>
                         <tr>
                             <td><?= $no++; ?></td>
                             <td><?= esc($row['tanggal'] ?? '-'); ?></td>
                             <td><?= esc($row['keterangan'] ?? '-'); ?></td>
-                            <td><?= number_format($masuk_qty); ?> <?= $masuk_qty > 0 ? strtoupper($satuan) : ''; ?></td>
-                            <td><?= number_format($harga, 0, ',', '.'); ?></td>
-                            <td><?= number_format($masuk_qty * $harga, 0, ',', '.'); ?></td>
-                            <td><?= number_format($keluar_qty); ?> <?= $keluar_qty > 0 ? strtoupper($satuan) : ''; ?></td>
-                            <td><?= number_format($harga, 0, ',', '.'); ?></td>
-                            <td><?= number_format($keluar_qty * $harga, 0, ',', '.'); ?></td>
-                            <td><?= number_format($saldo_qty); ?> <?= $saldo_qty > 0 ? strtoupper($satuan) : ''; ?></td>
-                            <td><?= number_format($harga, 0, ',', '.'); ?></td>
+                            <td><?= number_format($masuk_qty, 2, ',', '.'); ?> <?= $masuk_qty > 0 ? strtoupper($satuan) : ''; ?></td>
+                            <td><?= number_format($harga_satuan_masuk, 0, ',', '.'); ?></td>
+                            <td><?= number_format($masuk_qty * $harga_satuan_masuk, 0, ',', '.'); ?></td>
+                            <td><?= number_format($keluar_qty, 2, ',', '.'); ?> <?= $keluar_qty > 0 ? strtoupper($satuan) : ''; ?></td>
+                            <td><?= number_format($harga_satuan_keluar, 0, ',', '.'); ?></td>
+                            <td><?= number_format($keluar_qty * $harga_satuan_keluar, 0, ',', '.'); ?></td>
+                            <td><?= number_format($saldo_qty, 2, ',', '.'); ?> <?= $saldo_qty > 0 ? strtoupper($satuan) : ''; ?></td>
+                            <td><?= number_format(($row['jenis'] == 'masuk') ? $harga_satuan_masuk : $harga_satuan_keluar, 0, ',', '.'); ?></td>
                             <td><?= number_format($saldo_harga, 0, ',', '.'); ?></td>
                         </tr>
                     <?php endforeach; ?>

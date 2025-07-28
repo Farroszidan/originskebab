@@ -14,4 +14,11 @@ class PerintahKerjaModel extends Model
     {
         return $this->orderBy('tanggal', 'DESC')->findAll();
     }
+
+    public function getBSJByAdminId($adminId)
+    {
+        return $this->where('admin_id', $adminId)
+            ->where('tipe', 'BSJ')
+            ->findAll();
+    }
 }

@@ -14,13 +14,6 @@
             <p><strong>Tanggal:</strong> <?= date('d-m-Y', strtotime($produksi['tanggal'])) ?></p>
             <p><strong>BSJ:</strong> <?= esc($produksi['nama_bsj']) ?> (<?= esc($produksi['jumlah']) ?> <?= esc($produksi['satuan']) ?>)</p>
             <p><strong>Total Biaya Produksi:</strong> Rp <?= number_format($produksi['total_biaya'], 0, ',', '.') ?></p>
-            <p><strong>HPP per <?= esc($produksi['satuan']) ?>:</strong>
-                <?php if ($produksi['jumlah'] > 0): ?>
-                    Rp <?= number_format($produksi['total_biaya'] / $produksi['jumlah'], 0, ',', '.') ?>
-                <?php else: ?>
-                    -
-                <?php endif; ?>
-            </p>
         </div>
     </div>
 

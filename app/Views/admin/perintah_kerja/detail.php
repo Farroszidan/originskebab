@@ -80,7 +80,7 @@
                             }
                         }
                         $kurang = $b['jumlah'] - $stok_tampil;
-                        $pembulatan = ceil($kurang);
+                        $pembulatan = isset($b['pembulatan']) ? $b['pembulatan'] : null;
                     ?>
                         <?php if ($kurang > 0) :
                             $adaKekurangan = true;

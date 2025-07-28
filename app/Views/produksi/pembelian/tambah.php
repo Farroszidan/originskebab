@@ -2,247 +2,250 @@
 <?= $this->section('page-content'); ?>
 
 <div class="container-fluid">
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Form Tambah Pembelian</h6>
+    <h1 class="h3 mb-4 text-gray-800"><?= esc($tittle); ?></h1>
+
+    <form action="<?= base_url('produksi/pembelian/simpan'); ?>" method="post" enctype="multipart/form-data" id="form-pembelian">
+        <div class="card mb-4">
+            <div class="card-header">Informasi Umum</div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>Tanggal Pembelian</label>
+                    <input type="date" name="tanggal" class="form-control" required>
+                </div>
+                <!-- Dropdown Perintah Kerja -->
+                <div class="form-group">
+                    <label for="perintah_kerja">Perintah Kerja</label>
+                    <select name="perintah_kerja_id" id="perintah_kerja" class="form-control">
+                        <option value="">-- Pilih Perintah Kerja --</option>
+                        <?php foreach ($perintah_kerja as $pk) : ?>
+                            <option value="<?= $pk['id']; ?>" <?= ($perintah_kerja_id == $pk['id']) ? 'selected' : '' ?>>
+                                <?= date('d-m-Y', strtotime($pk['tanggal'])) ?> - ID <?= $pk['id'] ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <!-- Field pemasok, tipe pembayaran, dan upload bukti transaksi dihapus sesuai permintaan -->
+            </div>
         </div>
-        <div class="card-body">
-            <form action="<?= base_url('produksi/pembelian/simpan-pembelian'); ?>" method="post" enctype="multipart/form-data">
-                <div class="form-group row">
-                    <div class="col-sm-2">
-                        <label for="tanggal" class="col-form-label">Tanggal Pembelian</label>
-                        <input type="date" name="tanggal" class="form-control" required>
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="jenis_pembelian" class="col-form-label">Jenis Pembelian</label>
-                        <select name="jenis_pembelian" id="jenis_pembelian" class="form-control" required>
-                            <option value="">-- Pilih Jenis --</option>
-                            <option value="tunai">Tunai</option>
-                            <option value="kredit">Kredit / PO</option>
-                        </select>
-                    </div>
-                    <div class="col-sm-2" id="nota-group">
-                        <label for="no_nota" class="col-form-label">No. Nota</label>
-                        <input type="text" name="no_nota" class="form-control" required>
-                    </div>
-                    <div class="col-sm-3" id="pemasok-group">
-                        <label for="pemasok_id" class="col-form-label">Pemasok</label>
-                        <select name="pemasok_id" id="pemasok_id" class="form-control" required>
-                            <option value="">-- Pilih Pemasok --</option>
-                            <?php foreach ($pemasok as $row): ?>
-                                <option value="<?= $row['id']; ?>" data-kategori="<?= $row['kategori']; ?>">
-                                    <?= $row['nama'] ?> (<?= ucfirst($row['kategori']) ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-sm-3" id="bukti-group">
-                        <label for="bukti" class="col-form-label">Upload Bukti Pembelian</label>
-                        <input type="file" name="bukti" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
-                    </div>
-                </div>
 
-                <hr>
-                <h5 class="mb-3">Barang Dibeli</h5>
 
-                <div class="form-row mb-3 align-items-end">
-                    <div class="col-md-4">
-                        <label>Bahan</label>
-                        <select id="bahan-select" class="form-control">
-                            <option value="">-- Pilih Bahan --</option>
-                            <?php foreach ($bahan as $row): ?>
-                                <option value="<?= $row['id'] ?>"
-                                    data-nama="<?= $row['nama'] ?>"
-                                    data-jenis="<?= $row['jenis'] ?>"
-                                    data-satuan="<?= $row['satuan'] ?>">
-                                    <?= $row['nama'] ?> (<?= ucfirst($row['jenis']) ?>)
-                                </option>
-                            <?php endforeach ?>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label>Jumlah</label>
-                        <input type="number" step="1" id="jumlah" class="form-control" placeholder="Jumlah">
-                    </div>
-                    <div class="col-md-3">
-                        <label>Harga Satuan</label>
-                        <input type="number" step="1" id="harga-satuan" class="form-control" placeholder="Harga Satuan">
-                    </div>
-                    <div class="col-auto">
-                        <button type="button" class="btn btn-primary" id="btn-tambah">
-                            <i class="fas fa-plus"></i> Tambah
-                        </button>
-                    </div>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped" id="daftar-pembelian">
-                        <thead class="thead-dark">
-                            <tr>
-                                <th>Nama</th>
-                                <th>Kategori</th>
-                                <th>Satuan</th>
-                                <th>Qty</th>
-                                <th>Harga</th>
-                                <th>Subtotal</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">Total Pembelian</label>
-                    <div class="col-sm-10">
-                        <input type="text" name="total" class="form-control font-weight-bold" id="total-pembelian" readonly>
-                    </div>
-                </div>
-
-                <div class="form-group row">
-                    <div class="col-sm-10 offset-sm-2">
-                        <button type="submit" class="btn btn-primary mr-2">
-                            <i class="fas fa-save"></i> Simpan Pembelian
-                        </button>
-                        <a href="<?= base_url('produksi/pembelian') ?>" class="btn btn-secondary">
-                            <i class="fas fa-times"></i> Batal
-                        </a>
-                    </div>
-                </div>
-            </form>
+        <div class="card mb-4">
+            <div class="card-header">Detail Bahan yang Dibeli</div>
+            <div class="card-body" id="container-bahan">
+                <!-- Baris bahan akan di-generate JS -->
+            </div>
+            <div class="card-footer">
+                <button type="button" class="btn btn-secondary" onclick="addRow()">+ Tambah Bahan</button>
+            </div>
         </div>
-    </div>
+
+        <div class="form-group">
+            <label>Total Pembelian</label>
+            <input type="text" id="total-pembelian" name="total_harga" class="form-control" readonly>
+        </div>
+
+        <button type="submit" class="btn btn-success">Simpan</button>
+        <a href="<?= base_url('produksi/pembelian'); ?>" class="btn btn-secondary">Kembali</a>
+    </form>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Jenis pembelian: hide/show pemasok & bukti, atur required
-        const jenisPembelian = document.getElementById('jenis_pembelian');
-        const pemasokGroup = document.getElementById('pemasok-group');
-        const buktiGroup = document.getElementById('bukti-group');
-        const notaGroup = document.getElementById('nota-group');
-        const pemasokSelect = document.getElementById('pemasok_id');
-        const buktiInput = document.querySelector('input[name="bukti"]');
-        const notaInput = document.querySelector('input[name="no_nota"]');
+    let bahanAll = <?= json_encode($bahan_all); ?>;
+    let bahanDariPerintah = <?= json_encode($bahan_dari_perintah ?? []); ?>;
+    let count = 0;
 
-        function setFieldVisibility() {
-            if (jenisPembelian.value === 'tunai') {
-                pemasokGroup.style.display = '';
-                buktiGroup.style.display = '';
-                notaGroup.style.display = '';
-                // Required
-                pemasokSelect.removeAttribute('required');
-                buktiInput.setAttribute('required', 'required');
-                notaInput.setAttribute('required', 'required');
-            } else if (jenisPembelian.value === 'kredit') {
-                pemasokGroup.style.display = '';
-                buktiGroup.style.display = 'none';
-                notaGroup.style.display = 'none';
-                pemasokSelect.setAttribute('required', 'required');
-                buktiInput.removeAttribute('required');
-                notaInput.removeAttribute('required');
-            } else {
-                pemasokGroup.style.display = '';
-                buktiGroup.style.display = '';
-                notaGroup.style.display = '';
-                pemasokSelect.setAttribute('required', 'required');
-                buktiInput.setAttribute('required', 'required');
-                notaInput.setAttribute('required', 'required');
+    // Fungsi untuk menambahkan baris baru manual
+    function addRow(preset) {
+        const wrapper = document.getElementById('container-bahan');
+        const options = bahanAll.map(b =>
+            `<option value="${b.id}" data-nama="${b.nama}" data-satuan="${b.satuan}" data-kategori="${b.kategori}">
+                ${b.nama}
+            </option>`
+        ).join('');
+
+        // Pemasok, tipe pembayaran, dan upload bukti transaksi per baris
+        const pemasokArr = <?= json_encode(array_map(function ($s) {
+                                return ['id' => $s['id'], 'nama' => $s['nama']];
+                            }, $pemasok)); ?>;
+        const pemasokOptions = pemasokArr.map(s =>
+            `<option value="${s.id}">${s.nama}</option>`
+        ).join('');
+
+        const html = `
+        <div class="form-row border p-2 mb-2" data-index="${count}">
+            <div class="col-md-3">
+                <label>Nama Bahan</label>
+                <select name="bahan_id[]" class="form-control bahan-select" required>
+                    <option value="">-- Pilih --</option>
+                    ${options}
+                </select>
+                <input type="hidden" name="nama_bahan[]" class="nama-bahan">
+                <input type="hidden" name="kategori[]" class="kategori">
+                <input type="hidden" name="satuan[]" class="satuan">
+            </div>
+            <div class="col-md-2">
+                <label>Jumlah</label>
+                <input type="number" name="jumlah[]" class="form-control jumlah" min="0" step="0.01" required>
+            </div>
+            <div class="col-md-2">
+                <label>Harga Satuan</label>
+                <input type="number" name="harga_satuan[]" class="form-control harga" min="0" step="1" required>
+            </div>
+            <div class="col-md-2">
+                <label>Subtotal</label>
+                <input type="text" name="subtotal[]" class="form-control subtotal" readonly>
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.form-row').remove(); hitungTotal();">Hapus</button>
+            </div>
+            <div class="col-md-2">
+                <label>Pemasok</label>
+                <select name="pemasok_id[]" class="form-control pemasok-select">
+                    <option value="">-- Pilih Pemasok --</option>
+                    ${pemasokOptions}
+                </select>
+                <label class="mt-2">Tipe Pembayaran</label>
+                <select name="tipe_pembayaran[]" class="form-control tipe-pembayaran-select">
+                    <option value="">-- Pilih --</option>
+                    <option value="tunai">Tunai</option>
+                    <option value="kredit">Kredit</option>
+                </select>
+                <label class="mt-2">Bukti Transaksi</label>
+                <input type="file" name="bukti_transaksi[]" class="form-control-file">
+            </div>
+        </div>`;
+
+        wrapper.insertAdjacentHTML('beforeend', html);
+        // Set pemasok & tipe pembayaran otomatis jika preset tersedia
+        if (preset && preset.nama) {
+            setPemasokTipe(count, preset.nama);
+        }
+        count++;
+    }
+
+    // Fungsi set pemasok & tipe pembayaran otomatis berdasarkan nama bahan
+    function setPemasokTipe(idx, namaBahan) {
+        const row = document.querySelector(`#container-bahan .form-row[data-index="${idx}"]`);
+        if (!row) return;
+        const pemasokSelect = row.querySelector('.pemasok-select');
+        const tipeSelect = row.querySelector('.tipe-pembayaran-select');
+        let pemasokNama = '';
+        let tipe = '';
+        const nama = namaBahan.trim().toLowerCase();
+        if (nama === 'daging ayam' || nama === 'daging sapi') {
+            pemasokNama = 'syarif';
+            tipe = 'kredit';
+        } else if (nama === 'tepung terigu') {
+            pemasokNama = 'zidan';
+            tipe = 'kredit';
+        } else {
+            pemasokNama = 'pasar';
+            tipe = 'tunai';
+        }
+        // Pilih pemasok berdasarkan nama
+        for (let opt of pemasokSelect.options) {
+            if (opt.textContent.trim().toLowerCase() === pemasokNama) {
+                pemasokSelect.value = opt.value;
+                break;
             }
         }
-        jenisPembelian.addEventListener('change', setFieldVisibility);
-        setFieldVisibility(); // Inisialisasi tampilan awal
+        tipeSelect.value = tipe;
+    }
 
-        const bahanSelect = document.getElementById('bahan-select');
-        const btnTambah = document.getElementById('btn-tambah');
-        const tableBody = document.querySelector('#daftar-pembelian tbody');
-        const totalInput = document.getElementById('total-pembelian');
+    // Fungsi untuk tambah baris dengan data preset (dari perintah kerja)
+    function addRowWithData(data) {
+        addRow(data);
+        const row = document.querySelector(`#container-bahan .form-row[data-index="${count - 1}"]`);
+        const select = row.querySelector('.bahan-select');
+        select.value = data.bahan_id || '';
+        row.querySelector('.nama-bahan').value = data.nama || '';
+        row.querySelector('.kategori').value = data.kategori || '';
+        row.querySelector('.satuan').value = data.satuan || '';
+        // Jumlah diisi dari field pembulatan jika ada, jika tidak ada baru jumlah
+        let jumlahValue = (typeof data.pembulatan !== 'undefined' && data.pembulatan !== null) ?
+            parseFloat(data.pembulatan) :
+            (typeof data.jumlah !== 'undefined' ? parseFloat(data.jumlah) : '');
+        row.querySelector('.jumlah').value = jumlahValue !== '' ? jumlahValue.toFixed(2) : '';
+        row.querySelector('.harga').value = '';
+        row.querySelector('.subtotal').value = '';
+        // Set pemasok & tipe pembayaran otomatis
+        if (data.nama) setPemasokTipe(count - 1, data.nama);
+    }
 
-        // Filter bahan berdasarkan kategori pemasok
-        pemasokSelect.addEventListener('change', function() {
-            const selectedKategori = this.options[this.selectedIndex].dataset.kategori;
-            Array.from(bahanSelect.options).forEach(option => {
-                if (option.value === "") return;
-                const jenis = option.dataset.jenis;
-                option.style.display = (jenis === selectedKategori) ? 'block' : 'none';
-            });
-            bahanSelect.selectedIndex = 0;
-        });
-
-        // Tambah barang ke tabel
-        btnTambah.addEventListener('click', function() {
-            const selectedOption = bahanSelect.options[bahanSelect.selectedIndex];
-            const jumlah = parseFloat(document.getElementById('jumlah').value);
-            const harga = parseFloat(document.getElementById('harga-satuan').value);
-
-            if (!selectedOption.value || isNaN(jumlah) || isNaN(harga)) {
-                alert('Harap lengkapi semua field!');
-                return;
-            }
-
-            const subtotal = jumlah * harga;
-            const newRow = document.createElement('tr');
-            newRow.innerHTML = `
-                <td>
-                    ${selectedOption.dataset.nama}
-                    <input type="hidden" name="bahan_id[]" value="${selectedOption.value}">
-                </td>
-                <td>${selectedOption.dataset.jenis}</td>
-                <td>${selectedOption.dataset.satuan}</td>
-                <td>
-                    ${jumlah}
-                    <input type="hidden" name="jumlah[]" value="${jumlah}">
-                </td>
-                <td>
-                    ${harga.toLocaleString('id-ID')}
-                    <input type="hidden" name="harga_satuan[]" value="${harga}">
-                </td>
-                <td>${subtotal.toLocaleString('id-ID')}</td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm btn-hapus">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            `;
-
-            tableBody.appendChild(newRow);
-            hitungTotal();
-            resetFormInput();
-        });
-
-        // Hapus barang dari tabel
-        tableBody.addEventListener('click', function(e) {
-            if (e.target.closest('.btn-hapus')) {
-                e.target.closest('tr').remove();
-                hitungTotal();
-            }
-        });
-
-        // Fungsi hitung total
-        function hitungTotal() {
-            let total = 0;
-            const rows = tableBody.querySelectorAll('tr');
-
-            rows.forEach(row => {
-                const jumlah = parseFloat(row.querySelector('input[name="jumlah[]"]').value);
-                const harga = parseFloat(row.querySelector('input[name="harga_satuan[]"]').value);
-                total += jumlah * harga;
-            });
-
-            totalInput.value = total.toLocaleString('id-ID', {
-                style: 'currency',
-                currency: 'IDR',
-                minimumFractionDigits: 0
-            });
-        }
-
-        // Reset form input setelah tambah
-        function resetFormInput() {
-            document.getElementById('jumlah').value = '';
-            document.getElementById('harga-satuan').value = '';
-            bahanSelect.selectedIndex = 0;
+    // Inisialisasi bahan dari perintah kerja (jika ada)
+    document.addEventListener('DOMContentLoaded', () => {
+        if (bahanDariPerintah.length > 0) {
+            bahanDariPerintah.forEach(b => addRowWithData(b));
+        } else {
+            addRow();
         }
     });
+
+    // Event: saat dropdown perintah kerja berubah, ambil detail bahan via AJAX
+    document.getElementById('perintah_kerja').addEventListener('change', function() {
+        const id = this.value;
+        // Hapus semua baris bahan
+        document.getElementById('container-bahan').innerHTML = '';
+        count = 0;
+        if (!id) {
+            addRow();
+            return;
+        }
+        fetch('<?= base_url('produksi/pembelian/get_detail_perintah_kerja'); ?>/' + id)
+            .then(res => res.json())
+            .then(data => {
+                // Filter hanya bahan dengan pembulatan > 0
+                const filtered = Array.isArray(data) ? data.filter(b => b.pembulatan && parseFloat(b.pembulatan) > 0) : [];
+                if (filtered.length > 0) {
+                    filtered.forEach(b => addRowWithData(b));
+                } else {
+                    addRow();
+                }
+            })
+            .catch(() => addRow());
+    });
+
+    // Event: perubahan dropdown bahan atau jumlah/harga
+    document.addEventListener('change', function(e) {
+        const row = e.target.closest('.form-row');
+        if (!row) return;
+
+        if (e.target.classList.contains('bahan-select')) {
+            const selected = e.target.selectedOptions[0];
+            row.querySelector('.nama-bahan').value = selected.dataset.nama;
+            row.querySelector('.kategori').value = selected.dataset.kategori;
+            row.querySelector('.satuan').value = selected.dataset.satuan;
+            // Set pemasok & tipe pembayaran otomatis saat bahan dipilih manual
+            if (selected.dataset.nama) setPemasokTipe(row.getAttribute('data-index'), selected.dataset.nama);
+        }
+
+        if (e.target.classList.contains('jumlah') || e.target.classList.contains('harga')) {
+            const jumlah = parseFloat(row.querySelector('.jumlah').value) || 0;
+            const harga = parseFloat(row.querySelector('.harga').value) || 0;
+            const subtotal = jumlah * harga;
+            row.querySelector('.subtotal').value = formatRupiah(subtotal);
+            hitungTotal();
+        }
+    });
+
+    // Hitung total pembelian keseluruhan
+    function hitungTotal() {
+        let total = 0;
+        document.querySelectorAll('.subtotal').forEach(el => {
+            // Ambil angka dari format Rp
+            let val = el.value.replace(/[^\d]/g, '');
+            total += parseInt(val) || 0;
+        });
+        document.getElementById('total-pembelian').value = formatRupiah(total);
+    }
+
+    // Format angka ke Rupiah: Rp 1.234.567
+    function formatRupiah(angka) {
+        angka = Math.floor(angka);
+        return 'Rp ' + angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
 </script>
+
 
 <?= $this->endSection(); ?>

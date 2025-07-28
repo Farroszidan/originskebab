@@ -2,7 +2,7 @@
 <?php $this->section('page-content'); ?>
 <div class="container mt-4">
     <a href="<?= base_url('produksi/persediaan/bsj'); ?>" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Kembali</a>
-    <h4 class="mb-3">Kartu Persediaan BSJ</h4>
+    <h4 class="mb-3"><?= esc($tittle); ?></h4>
 
     <form method="get" action="<?= base_url('produksi/persediaan/kartu/bsj'); ?>" class="row g-3 mb-4">
         <div class="col-md-5">

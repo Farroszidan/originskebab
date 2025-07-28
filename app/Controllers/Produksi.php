@@ -32,262 +32,368 @@ class Produksi extends BaseController
     }
 
     //PEMBELIAN
-    public function pembelian()
+    // 1. INDEX
+    public function pembelianIndex()
     {
-        if (!in_groups(['admin', 'produksi'])) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
-        }
-        $pembelianModel = new PembelianModel();
-        $detailModel    = new DetailPembelianModel();
-        $bahanModel     = new BahanModel();
-        $pemasokModel   = new PemasokModel();
+        if (!in_groups('produksi')) return redirect()->to('login');
 
-        $dataPembelian = $pembelianModel
-            ->select('pembelian.*, pemasok.nama AS nama_pemasok')
-            ->join('pemasok', 'pemasok.id = pembelian.pemasok_id')
-            ->orderBy('pembelian.tanggal', 'DESC')
-            ->findAll();
+        $pembelianModel = new \App\Models\PembelianModel();
+        $detailPembelianModel = new \App\Models\DetailPembelianModel();
 
-        $pembelian = [];
+        $pembelian = $pembelianModel->orderBy('tanggal', 'DESC')->findAll();
 
-        foreach ($dataPembelian as $row) {
-            $detail = $detailModel->where('pembelian_id', $row['id'])->findAll();
-
-            $items = [];
-            foreach ($detail as $d) {
-                $bahan = $bahanModel->find($d['bahan_id']);
-                $items[] = [
-                    'nama'   => $bahan['nama'],
-                    'jumlah' => $d['jumlah'],
-                    'satuan' => $bahan['satuan']
-                ];
+        // Hitung total pembelian dari detail_pembelian
+        foreach ($pembelian as &$p) {
+            $details = $detailPembelianModel->where('pembelian_id', $p['id'])->findAll();
+            $total = 0;
+            foreach ($details as $d) {
+                $total += (int) $d['subtotal'];
             }
-
-            $row['item'] = $items;
-            $pembelian[] = $row;
+            $p['total_harga'] = $total;
         }
 
         return view('produksi/pembelian/index', [
-            'tittle'     => 'Daftar Pembelian',
-            'pembelian'  => $pembelian
+            'tittle' => 'Daftar Pembelian Bahan',
+            'pembelian' => $pembelian
         ]);
     }
 
-    public function simpanPembelian()
+    // 3. SIMPAN
+    public function pembelianSimpan()
     {
-        if (!in_groups(['admin', 'produksi'])) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        if (!in_groups('produksi')) return redirect()->to('login');
+
+        $pembelianModel       = new \App\Models\PembelianModel();
+        $detailPembelianModel = new \App\Models\DetailPembelianModel();
+        $bahanModel           = new \App\Models\BahanModel();
+        $akunModel            = new \App\Models\AkunModel();
+
+        $data = $this->request->getPost();
+        $tanggal          = $data['tanggal'];
+        $perintah_kerja_id = $data['perintah_kerja_id'] ?: null;
+        // Hitung total pembelian dari detail
+        $bahan_ids      = $data['bahan_id'];
+        $jumlahs        = $data['jumlah'];
+        $harga_satuans  = $data['harga_satuan'];
+        $subtotals      = $data['subtotal'];
+        $nama_bahan     = $data['nama_bahan'];
+        $kategoris      = $data['kategori'];
+        $satuans        = $data['satuan'];
+        $pemasok_ids    = $data['pemasok_id'];
+        $tipe_pembayaran = $data['tipe_pembayaran'];
+
+        // File upload per baris
+        $buktiFiles = $this->request->getFiles();
+        $buktiArr = isset($buktiFiles['bukti_transaksi']) ? $buktiFiles['bukti_transaksi'] : [];
+
+        $total_harga = 0;
+        foreach ($subtotals as $i => $subtotal) {
+            $subtotalClean = $subtotal;
+            if (is_string($subtotalClean)) {
+                $subtotalClean = preg_replace('/[^\d]/', '', $subtotalClean);
+                $subtotalClean = (int)$subtotalClean;
+            }
+            $total_harga += $subtotalClean;
         }
-        $pembelianModel       = new PembelianModel();
-        $bahanModel           = new BahanModel();
-        $detailPembelianModel = new DetailPembelianModel();
-        $akunModel            = new AkunModel();
-        $kartuModel = new KartuPersediaanModel();
-        $transaksiModel = new \App\Models\TransaksiBahanModel();
 
-        $tanggal    = $this->request->getPost('tanggal');
-        $noNota     = $this->request->getPost('no_nota');
-        $pemasokId  = $this->request->getPost('pemasok_id');
-        $jenisPembelian = $this->request->getPost('jenis_pembelian');
-        $total      = 0;
+        // Ambil tipe pembayaran dari input (asumsi semua sama, ambil yang pertama)
+        $jenisPembelian = isset($tipe_pembayaran[0]) ? strtolower($tipe_pembayaran[0]) : 'tunai';
+        // Ambil pemasok dari input (asumsi semua sama, ambil yang pertama)
+        $pemasokId = isset($pemasok_ids[0]) ? $pemasok_ids[0] : null;
 
-        // simpan file upload bukti pembelian
-        $bukti = $this->request->getFile('bukti');
-        $namaFile = null;
-
-        if ($bukti && $bukti->isValid() && !$bukti->hasMoved()) {
-            $namaFile = $bukti->getRandomName();
-            $bukti->move('uploads/bukti_pembelian/', $namaFile);
-        }
-
-        // Status barang: jika tunai langsung diterima, jika kredit/PO belum diterima
-        $statusBarang = ($jenisPembelian === 'tunai') ? 'sudah_diterima' : 'belum_diterima';
-
-        // Simpan data pembelian (header)
+        // Simpan pembelian utama (total_harga benar-benar hasil penjumlahan detail)
         $pembelianId = $pembelianModel->insert([
-            'no_nota'    => $noNota,
-            'tanggal'    => $tanggal,
-            'pemasok_id' => $pemasokId,
-            'total'      => 0, // nanti diupdate setelah hitung semua subtotal
-            'bukti_transaksi' => $namaFile,
-            'jenis_pembelian' => $jenisPembelian,
-            'status_barang'   => $statusBarang
+            'tanggal'           => $tanggal,
+            'perintah_kerja_id' => $perintah_kerja_id,
+            'total_harga'       => $total_harga,
+            'pemasok_id'        => $pemasokId,
+            'tipe_pembayaran'   => $jenisPembelian,
         ]);
 
-        // Loop simpan detail per item
-        foreach ($this->request->getPost('bahan_id') as $key => $bahanId) {
-            $jumlah = $this->request->getPost('jumlah')[$key];
-            $harga  = $this->request->getPost('harga_satuan')[$key];
-            $bahan  = $bahanModel->find($bahanId);
-            $satuan = strtolower($bahan['satuan']);
-            // Konversi jumlah sesuai satuan
-            if ($satuan === 'kg') {
-                $jumlah_db = $jumlah * 1000; // simpan dalam gram
-            } elseif ($satuan === 'liter') {
-                $jumlah_db = $jumlah * 1000; // simpan dalam ml
-            } else {
-                $jumlah_db = $jumlah; // pcs dan meter tetap
+        $kartuModel = new \App\Models\KartuPersediaanModel();
+        foreach ($bahan_ids as $i => $id_bahan) {
+            $buktiName = null;
+            if (isset($buktiArr[$i]) && $buktiArr[$i]->isValid()) {
+                $buktiName = $buktiArr[$i]->getRandomName();
+                $buktiArr[$i]->move('uploads/bukti_transaksi', $buktiName);
             }
-            $subtotal = (float)$jumlah * (float)$harga;
-
-            // Simpan ke detail pembelian
-            $detailPembelianModel->save([
-                'pembelian_id' => $pembelianId,
-                'bahan_id'     => $bahanId,
-                'jumlah'       => $jumlah_db,
-                'harga_satuan' => $harga,
-                'subtotal'     => $subtotal,
+            // Pastikan subtotal numeric (hilangkan Rp dan titik)
+            $subtotalClean = $subtotals[$i];
+            if (is_string($subtotalClean)) {
+                $subtotalClean = preg_replace('/[^\d]/', '', $subtotalClean);
+                $subtotalClean = (int)$subtotalClean;
+            }
+            $detailPembelianModel->insert([
+                'pembelian_id'   => $pembelianId,
+                'bahan_id'       => $id_bahan,
+                'nama_bahan'     => $nama_bahan[$i],
+                'kategori'       => $kategoris[$i],
+                'jumlah'         => $jumlahs[$i],
+                'satuan'         => $satuans[$i],
+                'harga_satuan'   => $harga_satuans[$i],
+                'subtotal'       => $subtotalClean,
+                'pemasok_id'     => $pemasok_ids[$i] ?? null,
+                'tipe_pembayaran' => $tipe_pembayaran[$i] ?? null,
+                'bukti_transaksi' => $buktiName,
             ]);
 
-            // Update stok bahan hanya jika tunai
-            if ($bahan && $jenisPembelian === 'tunai') {
-                $satuan = strtolower($bahan['satuan']);
-                $stokLama = $bahan['stok'];
+            // Update stok bahan: jika satuan kg/liter, simpan ke database dalam gram/ml
+            $bahan = $bahanModel->find($id_bahan);
+            $satuanBahan = strtolower($bahan['satuan']);
+            $jumlahTambah = $jumlahs[$i];
+            if ($satuanBahan === 'kg' || $satuanBahan === 'liter') {
+                $jumlahTambah = $jumlahTambah * 1000;
+            }
+            $newStok = $bahan['stok'] + $jumlahTambah;
 
-                // Konversi stok ke satuan tampil
-                $stokLamaTampil = $stokLama;
-                if ($satuan === 'kg' || $satuan === 'liter') {
-                    $stokLamaTampil = $stokLama / 1000;
+            // Update saldo bahan: saldo = stok (dalam satuan tampil) x harga_satuan terbaru
+            $stokTampil = ($satuanBahan === 'kg' || $satuanBahan === 'liter') ? $newStok / 1000 : $newStok;
+            $saldoBaru = $stokTampil * $harga_satuans[$i];
+            // Setelah update stok, update saldo saja (tanpa harga_satuan)
+            $bahanModel->update($id_bahan, [
+                'stok' => $newStok,
+                'saldo' => $saldoBaru
+            ]);
+            // Setelah semua pembelian, update harga_satuan bahan dengan metode average dari kartu persediaan
+            foreach (array_unique($bahan_ids) as $id_bahan_avg) {
+                $kartuRows = $kartuModel->where('bahan_id', $id_bahan_avg)->orderBy('tanggal', 'asc')->findAll();
+                $totalQty = 0;
+                $totalHarga = 0;
+                foreach ($kartuRows as $row) {
+                    if ($row['jenis'] === 'masuk') {
+                        $totalQty += $row['jumlah'];
+                        $totalHarga += $row['jumlah'] * $row['harga_satuan'];
+                    }
                 }
-
-                // Konversi jumlah masuk (tambahan) ke satuan tampilan juga
-                $jumlahMasukTampil = $jumlah_db;
-                if ($satuan === 'kg' || $satuan === 'liter') {
-                    $jumlahMasukTampil = $jumlah_db / 1000;
-                }
-
-                // Tambah stok
-                $stokBaru = $stokLama + $jumlah_db;
-
-                // Hitung saldo berdasarkan satuan tampil × harga
-                $saldoBaru = ($stokLamaTampil + $jumlahMasukTampil) * $bahan['harga_satuan'];
-
-                // Simpan update stok dan saldo
-                $bahanModel->update($bahanId, [
-                    'stok' => $stokBaru,
-                    'saldo' => $saldoBaru
-                ]);
-
-                $transaksiModel->save([
-                    'id_bahan' => $bahanId,
-                    'tanggal' => $tanggal,
-                    'jenis' => 'masuk',
-                    'jumlah' => $jumlah_db,
-                    'satuan' => $bahan['satuan'],
-                    'keterangan' => 'Pembelian No. Nota: ' . $noNota,
-                ]);
-
-                $kartuModel->save([
-                    'bahan_id' => $bahanId,
-                    'tanggal' => $tanggal,
-                    'jenis' => 'masuk',
-                    'jumlah' => $jumlah_db,
-                    'keterangan' => 'Pembelian No. Nota: ' . $noNota,
+                $hargaAvg = ($totalQty > 0) ? ($totalHarga / $totalQty) : 0;
+                $bahanModel->update($id_bahan_avg, [
+                    'harga_satuan' => $hargaAvg
                 ]);
             }
 
-            $total += $subtotal;
+            // Catat ke kartu persediaan bahan (masuk), simpan harga_satuan per item
+            $kartuModel->insert([
+                'bahan_id'     => $id_bahan,
+                'tanggal'      => $tanggal,
+                'jenis'        => 'masuk',
+                'jumlah'       => $jumlahTambah,
+                'harga_satuan' => $harga_satuans[$i],
+                'keterangan'   => 'Pembelian bahan',
+                'created_at'   => date('Y-m-d H:i:s'),
+            ]);
         }
 
-        // Update total di header pembelian
-        $pembelianModel->update($pembelianId, [
-            'total' => $total
-        ]);
-
-        // Update saldo akun sesuai transaksi
-        if ($jenisPembelian === 'tunai') {
-            // Kas (101) berkurang (kredit)
-            $akunModel->updateSaldo(101, $total, 'kredit');
-            // Persediaan bahan penolong (108) bertambah (debit)
-            $akunModel->updateSaldo(108, $total, 'debit');
-        } elseif ($jenisPembelian === 'kredit') {
-            // Persediaan bahan baku (107) bertambah (debit)
-            $akunModel->updateSaldo(107, $total, 'debit');
-            // Utang usaha (201) bertambah (kredit)
-            $akunModel->updateSaldo(201, $total, 'kredit');
-
-            // Catat jurnal umum untuk pembelian kredit
-            $db = \Config\Database::connect();
-            $akunPersediaan = $akunModel->where('kode_akun', 107)->first(); // Persediaan bahan baku
-            $akunUtang = $akunModel->where('kode_akun', 201)->first(); // Utang usaha
-            if ($akunPersediaan && $akunUtang) {
-                $jurnal = $db->table('jurnal_umum');
-                $grandTotal = $total;
-                $keterangan = 'Pembelian Kredit';
-
-                // Debit ke Persediaan bahan baku dan Kredit ke Utang usaha, satu baris saja
-                $jurnal->insert([
-                    'tanggal' => $tanggal,
-                    'akun_id' => $akunPersediaan['id'],
-                    'debit' => $grandTotal,
-                    'kredit' => 0,
-                    'keterangan' => $keterangan,
-                    'supplier_id' => $pemasokId,
-                ]);
-                $jurnal->insert([
-                    'tanggal' => $tanggal,
-                    'akun_id' => $akunUtang['id'],
-                    'debit' => 0,
-                    'kredit' => $grandTotal,
-                    'keterangan' => $keterangan,
-                    'supplier_id' => $pemasokId,
-                ]);
+        // Update saldo akun dan catat jurnal umum per item sesuai tipe pembayaran
+        $db = \Config\Database::connect();
+        $jurnal = $db->table('jurnal_umum');
+        foreach ($bahan_ids as $i => $id_bahan) {
+            $subtotal = $subtotals[$i];
+            if (is_string($subtotal)) {
+                $subtotal = preg_replace('/[^\d]/', '', $subtotal);
+                $subtotal = (int)$subtotal;
+            }
+            $tipe = isset($tipe_pembayaran[$i]) ? strtolower($tipe_pembayaran[$i]) : 'tunai';
+            $pemasokIdItem = $pemasok_ids[$i] ?? null;
+            // Persediaan bahan baku (121)
+            $akunPersediaan = $akunModel->where('kode_akun', 121)->first();
+            if ($tipe === 'tunai') {
+                // Kas (101) berkurang (kredit)
+                $akunModel->updateSaldo(101, $subtotal, 'kredit');
+                // Persediaan bahan baku (121) bertambah (debit)
+                $akunModel->updateSaldo(121, $subtotal, 'debit');
+                // Jurnal umum: debit persediaan bahan baku, kredit kas
+                if ($akunPersediaan) {
+                    $akunKas = $akunModel->where('kode_akun', 101)->first();
+                    $jurnal->insert([
+                        'tanggal' => $tanggal,
+                        'akun_id' => $akunPersediaan['id'],
+                        'debit' => $subtotal,
+                        'kredit' => 0,
+                        'keterangan' => 'Pembelian Tunai',
+                        'supplier_id' => $pemasokIdItem,
+                    ]);
+                    if ($akunKas) {
+                        $jurnal->insert([
+                            'tanggal' => $tanggal,
+                            'akun_id' => $akunKas['id'],
+                            'debit' => 0,
+                            'kredit' => $subtotal,
+                            'keterangan' => 'Pembelian Tunai',
+                            'supplier_id' => $pemasokIdItem,
+                        ]);
+                    }
+                }
+            } elseif ($tipe === 'kredit') {
+                // Utang usaha (201) bertambah (kredit)
+                $akunModel->updateSaldo(201, $subtotal, 'kredit');
+                // Persediaan bahan baku (121) bertambah (debit)
+                $akunModel->updateSaldo(121, $subtotal, 'debit');
+                // Jurnal umum: debit persediaan bahan baku, kredit utang usaha
+                if ($akunPersediaan) {
+                    $akunUtang = $akunModel->where('kode_akun', 201)->first();
+                    $jurnal->insert([
+                        'tanggal' => $tanggal,
+                        'akun_id' => $akunPersediaan['id'],
+                        'debit' => $subtotal,
+                        'kredit' => 0,
+                        'keterangan' => 'Pembelian Kredit',
+                        'supplier_id' => $pemasokIdItem,
+                    ]);
+                    if ($akunUtang) {
+                        $jurnal->insert([
+                            'tanggal' => $tanggal,
+                            'akun_id' => $akunUtang['id'],
+                            'debit' => 0,
+                            'kredit' => $subtotal,
+                            'keterangan' => 'Pembelian Kredit',
+                            'supplier_id' => $pemasokIdItem,
+                        ]);
+                    }
+                }
             }
         }
 
-        return redirect()->to('produksi/pembelian')->with('success', 'Pembelian berhasil disimpan.');
+        return redirect()->to('produksi/pembelian')->with('success', 'Data pembelian berhasil disimpan.');
     }
 
-    public function detailPembelian($id)
+    // 2. INPUT
+    public function pembelianInput()
     {
         if (!in_groups(['admin', 'produksi'])) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+            return redirect()->back()->with('error', 'Tidak memiliki akses');
         }
-        $pembelianModel = new PembelianModel();
-        $detailModel    = new DetailPembelianModel();
-        $pemasokModel   = new PemasokModel();
+
+        $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+        $detailPKModel = new \App\Models\DetailPerintahKerjaModel();
+        $pemasokModel = new \App\Models\PemasokModel();
+        $bahanModel = new \App\Models\BahanModel();
+
+        $perintah_kerja_id = $this->request->getGet('perintah_kerja_id');
+
+        // Ambil hanya perintah_kerja_id yang ada di detail_perintah_kerja (unique)
+        $db = \Config\Database::connect();
+        $builder = $db->table('detail_perintah_kerja');
+        $builder->select('perintah_kerja_id');
+        $builder->groupBy('perintah_kerja_id');
+        $result = $builder->get()->getResultArray();
+        $perintah_kerja_ids = array_column($result, 'perintah_kerja_id');
+
+        // Ambil data perintah kerja hanya yang id-nya ada di detail_perintah_kerja
+        $perintah_kerja = [];
+        if (!empty($perintah_kerja_ids)) {
+            $perintah_kerja = $perintahKerjaModel->whereIn('id', $perintah_kerja_ids)->findAll();
+        }
+
+        $data = [
+            'tittle' => 'Input Pembelian Bahan Produksi',
+            'perintah_kerja' => $perintah_kerja,
+            'perintah_kerja_id' => $perintah_kerja_id,
+            'pemasok' => $pemasokModel->findAll(),
+            'bahan_all' => $bahanModel->findAll(),
+            'bahan_dari_perintah' => []
+        ];
+
+        if ($perintah_kerja_id) {
+            $detail = $detailPKModel->getByPerintahId($perintah_kerja_id);
+            // Cek dan cocokkan bahan_id berdasarkan nama (harus cocok)
+            $bahanAll = $data['bahan_all'];
+            $bahanMap = [];
+            foreach ($bahanAll as $b) {
+                $bahanMap[$b['nama']] = $b;
+            }
+
+            $converted = [];
+            foreach ($detail as $d) {
+                if (isset($bahanMap[$d['nama']])) {
+                    $bahan = $bahanMap[$d['nama']];
+                    $converted[] = [
+                        'bahan_id' => $bahan['id'],
+                        'nama' => $bahan['nama'],
+                        'jumlah' => $d['jumlah'],
+                        'satuan' => $bahan['satuan'],
+                        'kategori' => $bahan['kategori'],
+                    ];
+                }
+            }
+
+            $data['bahan_dari_perintah'] = $converted;
+        }
+
+        return view('produksi/pembelian/tambah', $data);
+    }
+
+    // 4. DETAIL
+    public function pembelianDetail($id)
+    {
+        if (!in_groups('produksi')) return redirect()->to('login');
+
+        $pembelianModel       = new \App\Models\PembelianModel();
+        $detailPembelianModel = new \App\Models\DetailPembelianModel();
+        $pemasokModel         = new \App\Models\PemasokModel();
 
         $pembelian = $pembelianModel->find($id);
-        $pemasok   = $pemasokModel->find($pembelian['pemasok_id']);
-        $detail    = $detailModel->where('pembelian_id', $id)->findAll();
+        if (!$pembelian) {
+            return redirect()->to('produksi/pembelian')->with('error', 'Pembelian tidak ditemukan.');
+        }
+
+        // Ambil nama pemasok untuk header jika ada
+        if (!empty($pembelian['pemasok_id'])) {
+            $pemasok = $pemasokModel->find($pembelian['pemasok_id']);
+            $pembelian['nama_pemasok'] = $pemasok['nama'] ?? '-';
+        }
+
+        // Pastikan total_harga selalu ada di $pembelian
+        if (!isset($pembelian['total_harga'])) {
+            // Hitung total dari detail jika belum ada
+            $detailTemp = $detailPembelianModel->where('pembelian_id', $id)->findAll();
+            $total_harga = 0;
+            foreach ($detailTemp as $d) {
+                $total_harga += (int) $d['subtotal'];
+            }
+            $pembelian['total_harga'] = $total_harga;
+        }
+
+        $detail = $detailPembelianModel->where('pembelian_id', $id)->findAll();
+        // Ambil nama pemasok untuk setiap detail
+        foreach ($detail as &$d) {
+            if (!empty($d['pemasok_id'])) {
+                $pemasok = $pemasokModel->find($d['pemasok_id']);
+                $d['nama_pemasok'] = $pemasok['nama'] ?? '-';
+            } else {
+                $d['nama_pemasok'] = '-';
+            }
+        }
 
         return view('produksi/pembelian/detail', [
             'tittle'     => 'Detail Pembelian',
             'pembelian' => $pembelian,
-            'pemasok'   => $pemasok,
             'detail'    => $detail
         ]);
     }
 
-    public function createPembelian()
+    // AJAX: Ambil detail bahan dari perintah kerja (untuk form pembelian)
+    public function get_detail_perintah_kerja($id)
     {
-        if (!in_groups(['admin', 'produksi'])) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        if (!in_groups(['admin', 'produksi'])) return $this->response->setStatusCode(403);
+        $detailPKModel = new \App\Models\DetailPerintahKerjaModel();
+        $bahanModel = new \App\Models\BahanModel();
+        $detail = $detailPKModel->where('perintah_kerja_id', $id)->findAll();
+        $result = [];
+        foreach ($detail as $d) {
+            // Cari id bahan dari nama & satuan
+            $bahan = $bahanModel->where('nama', $d['nama'])->where('satuan', $d['satuan'])->first();
+            $result[] = [
+                'id' => $d['id'],
+                'perintah_kerja_id' => $d['perintah_kerja_id'],
+                'bahan_id' => $bahan['id'] ?? '',
+                'nama' => $d['nama'],
+                'kategori' => $d['kategori'] ?? ($bahan['kategori'] ?? ''),
+                'satuan' => $d['satuan'],
+                'jumlah' => $d['jumlah'],
+                'pembulatan' => $d['pembulatan'] ?? null,
+            ];
         }
-
-        $pembelianmodel = new PembelianModel();
-        $pemasokModel   = new PemasokModel();
-        $bahanModel = new BahanModel();
-
-        $data = [
-            'tittle' => 'Form Tambah Pembelian',
-            'pembelian' => $pembelianmodel->findAll(),
-            'pemasok'   => $pemasokModel->findAll(),
-            'bahan' => $bahanModel->findAll(),
-
-        ];
-        return view('produksi/pembelian/tambah', $data);
-    }
-
-    public function hapusPembelian($id)
-    {
-        if (!in_groups(['admin', 'produksi'])) {
-            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
-        }
-        $pembelianModel = new PembelianModel();
-        $pembelianModel->delete($id);
-
-        return redirect()->to(base_url('produksi/pembelian'))->with('success', 'Data berhasil dihapus.');
+        return $this->response->setJSON($result);
     }
 
     // Form edit pembelian (edit nota dan jumlah bahan)
@@ -435,7 +541,21 @@ class Produksi extends BaseController
         $pembelianModel->update($id, ['status_barang' => $status]);
         return redirect()->to(base_url('produksi/pembelian'))->with('success', 'Status pembelian berhasil diubah.');
     }
+    public function hapusPembelian($id)
+    {
+        if (!in_groups(['admin', 'produksi'])) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke halaman ini');
+        }
+        $pembelianModel = new \App\Models\PembelianModel();
+        $detailPembelianModel = new \App\Models\DetailPembelianModel();
 
+        // Hapus detail pembelian terlebih dahulu
+        $detailPembelianModel->where('pembelian_id', $id)->delete();
+        // Hapus pembelian utama
+        $pembelianModel->delete($id);
+
+        return redirect()->to('produksi/pembelian')->with('success', 'Data pembelian berhasil dihapus.');
+    }
     //PERSEDIAAN
     //BAHAN MENTAH
     public function bahan()
@@ -601,7 +721,7 @@ class Produksi extends BaseController
             'bsj' => $bsjModel->findAll()
         ];
 
-        return view('produksi/persediaan/bsj', $data);
+        return view('produksi/persediaan/bsj/bsj', $data);
     }
 
     public function tambahBSJ()
@@ -616,7 +736,7 @@ class Produksi extends BaseController
             'bsj' => $bsjModel->findAll(),
 
         ];
-        return view('produksi/persediaan/tambah_bsj', $data);
+        return view('produksi/persediaan/bsj/tambah_bsj', $data);
     }
 
     public function simpanBSJ()
@@ -662,7 +782,7 @@ class Produksi extends BaseController
             'bsj' => $bsjModel->find($id),
 
         ];
-        return view('produksi/persediaan/edit_bsj', $data);
+        return view('produksi/persediaan/bsj/edit_bsj', $data);
     }
 
     public function updateBSJ($id)
@@ -689,7 +809,6 @@ class Produksi extends BaseController
             'stok' => $stok,
             'satuan' => $this->request->getPost('satuan'),
         ]);
-
         return redirect()->to(base_url('produksi/persediaan/bsj'))->with('success', 'Data berhasil diperbarui.');
     }
 
@@ -708,10 +827,8 @@ class Produksi extends BaseController
             return redirect()->to(base_url('produksi/persediaan/bsj'))
                 ->with('error', 'Tidak bisa menghapus BSJ karena masih memiliki komposisi bahan.');
         }
-
         // Jika tidak ada relasi, aman dihapus
         $bsjModel->delete($id);
-
         return redirect()->to(base_url('produksi/persediaan/bsj'))->with('success', 'Data BSJ berhasil dihapus.');
     }
 
@@ -730,10 +847,6 @@ class Produksi extends BaseController
         $tenaga_kerja = $tkModel->findAll();
         $overhead = $bopModel->findAll();
 
-        // Hitung total biaya tenaga kerja dan bop dibagi 3 (karena ada 3 jenis BSJ)
-        $total_tk = array_sum(array_column($tenaga_kerja, 'biaya'));
-        $total_bop = array_sum(array_column($overhead, 'biaya'));
-
         $data = [
             'tittle'              => 'Input Produksi',
             'bsj'                 => $bsjModel->findAll(),
@@ -741,8 +854,10 @@ class Produksi extends BaseController
             'komposisi'           => $komposisiModel->findAll(),
             'tenaga_kerja'        => $tenaga_kerja,
             'overhead'            => $overhead,
-            'total_tenaga_kerja'  => $total_tk,
-            'total_bop'           => $total_bop / 3
+            'total_tenaga_kerja'  => array_sum(array_column($tenaga_kerja, 'biaya')),
+            'total_bop'           => array_sum(array_column($overhead, 'biaya')) / 3,
+            'bop_all'             => $overhead,
+            'tenaga_kerja_all'    => $tenaga_kerja
         ];
 
         return view('produksi/produksi/input', $data);
@@ -807,32 +922,42 @@ class Produksi extends BaseController
         $tenaga_kerja = $tkModel->findAll();
         $totalTenagaKerja = 0;
         foreach ($tenaga_kerja as $tk) {
-            $subtotal = $tk['biaya'];
+            $subtotal = $tk['biaya'] * $jumlah;
             $detailModel->save([
                 'produksi_id'   => $produksiId,
                 'kategori'      => 'tenaga_kerja',
                 'nama_biaya'    => $tk['nama'],
-                'jumlah'        => 1,
+                'jumlah'        => $jumlah,
                 'harga_satuan'  => $tk['biaya'],
                 'subtotal'      => $subtotal,
             ]);
             $totalTenagaKerja += $subtotal;
         }
 
-        // === BOP (dibagi 3, tidak dikali jumlah produksi) ===
+        // === BOP: ambil sesuai jumlah produksi ===
         $overhead = $bopModel->findAll();
+        $jenisBOP = '';
+        if ($jumlah < 500) {
+            $jenisBOP = 'sedikit';
+        } elseif ($jumlah >= 500 && $jumlah <= 1000) {
+            $jenisBOP = 'sedang';
+        } elseif ($jumlah > 1000) {
+            $jenisBOP = 'banyak';
+        }
         $totalBOP = 0;
         foreach ($overhead as $bop) {
-            $subtotal = $bop['biaya'] / 3;
-            $detailModel->save([
-                'produksi_id'   => $produksiId,
-                'kategori'      => 'overhead',
-                'nama_biaya'    => $bop['nama'],
-                'jumlah'        => 1,
-                'harga_satuan'  => $subtotal,
-                'subtotal'      => $subtotal,
-            ]);
-            $totalBOP += $subtotal;
+            if ($bop['jenis_bsj'] === $jenisBOP) {
+                $subtotal = $bop['biaya'] / 3;
+                $detailModel->save([
+                    'produksi_id'   => $produksiId,
+                    'kategori'      => 'overhead',
+                    'nama_biaya'    => $bop['nama'],
+                    'jumlah'        => 1,
+                    'harga_satuan'  => $subtotal,
+                    'subtotal'      => $subtotal,
+                ]);
+                $totalBOP += $subtotal;
+            }
         }
 
         // === Update total biaya ===
@@ -1001,6 +1126,72 @@ class Produksi extends BaseController
                     'jumlah'     => $produksi['jumlah'],
                     'keterangan' => 'Hasil Produksi No: ' . $produksi['id']
                 ]);
+                // Update jurnal umum dan saldo akun
+                $akunModel = new \App\Models\AkunModel();
+                $db = \Config\Database::connect();
+                $jurnal = $db->table('jurnal_umum');
+                // Ambil total biaya dari produksi
+                $total_biaya = $produksi['total_biaya'];
+                // Persediaan BSJ (123) - debit
+                $akunBSJ = $akunModel->where('kode_akun', 123)->first();
+                // Persediaan bahan baku (121) - kredit
+                $akunBahan = $akunModel->where('kode_akun', 121)->first();
+                // Utang gaji (202) - kredit
+                $akunGaji = $akunModel->where('kode_akun', 202)->first();
+                // Beban operasional produksi (607) - kredit
+                $akunBOP = $akunModel->where('kode_akun', 607)->first();
+                // Hitung komponen biaya
+                $detailModel = new \App\Models\DetailProduksiModel();
+                $detail = $detailModel->where('produksi_id', $produksi['id'])->findAll();
+                $bahanBaku = 0;
+                $tenagaKerja = 0;
+                $bop = 0;
+                foreach ($detail as $d) {
+                    if ($d['kategori'] == 'baku') $bahanBaku += $d['subtotal'];
+                    if ($d['kategori'] == 'tenaga_kerja') $tenagaKerja += $d['subtotal'];
+                    if ($d['kategori'] == 'overhead') $bop += $d['subtotal'];
+                }
+                // Jurnal: debit persediaan BSJ, kredit bahan baku, utang gaji, beban operasional
+                if ($akunBSJ) {
+                    $jurnal->insert([
+                        'tanggal' => date('Y-m-d'),
+                        'akun_id' => $akunBSJ['id'],
+                        'debit' => $total_biaya,
+                        'kredit' => 0,
+                        'keterangan' => 'Produksi BSJ No: ' . $produksi['id'],
+                    ]);
+                    $akunModel->updateSaldo(123, $total_biaya, 'debit');
+                }
+                if ($akunBahan && $bahanBaku > 0) {
+                    $jurnal->insert([
+                        'tanggal' => date('Y-m-d'),
+                        'akun_id' => $akunBahan['id'],
+                        'debit' => 0,
+                        'kredit' => $bahanBaku,
+                        'keterangan' => 'Produksi BSJ No: ' . $produksi['id'],
+                    ]);
+                    $akunModel->updateSaldo(121, $bahanBaku, 'kredit');
+                }
+                if ($akunGaji && $tenagaKerja > 0) {
+                    $jurnal->insert([
+                        'tanggal' => date('Y-m-d'),
+                        'akun_id' => $akunGaji['id'],
+                        'debit' => 0,
+                        'kredit' => $tenagaKerja,
+                        'keterangan' => 'Produksi BSJ No: ' . $produksi['id'],
+                    ]);
+                    $akunModel->updateSaldo(202, $tenagaKerja, 'kredit');
+                }
+                if ($akunBOP && $bop > 0) {
+                    $jurnal->insert([
+                        'tanggal' => date('Y-m-d'),
+                        'akun_id' => $akunBOP['id'],
+                        'debit' => 0,
+                        'kredit' => $bop,
+                        'keterangan' => 'Produksi BSJ No: ' . $produksi['id'],
+                    ]);
+                    $akunModel->updateSaldo(607, $bop, 'kredit');
+                }
             }
         }
 
@@ -1062,7 +1253,16 @@ class Produksi extends BaseController
             'hpp_per_unit' => $hpp_per_unit,
             'keterangan' => $keterangan
         ]);
-        return redirect()->to(base_url('produksi/hpp/form'))->with('success', 'Data HPP berhasil disimpan.');
+        // Update harga dan saldo di tabel BSJ
+        $bsjModel = new \App\Models\BSJModel();
+        $bsj = $bsjModel->find($produksi['bsj_id']);
+        if ($bsj) {
+            $bsjModel->update($bsj['id'], [
+                'harga' => $hpp_per_unit,
+                'saldo' => $bsj['stok'] * $hpp_per_unit
+            ]);
+        }
+        return redirect()->to(base_url('produksi/hpp/form'))->with('success', 'Data HPP berhasil disimpan dan harga BSJ telah diupdate.');
     }
 
     public function indexHPP()
@@ -1129,29 +1329,90 @@ class Produksi extends BaseController
         $outletModel = new \App\Models\OutletModel();
         $bsjModel = new \App\Models\BSJModel();
         $bahanModel = new \App\Models\BahanModel();
+        $perintahPengirimanModel = new \App\Models\PerintahPengirimanModel();
         $data = [
             'tittle' => 'Form Pengiriman Barang',
             'outlets' => $outletModel->findAll(),
             'barang_bsj' => $bsjModel->findAll(),
             'bahan' => $bahanModel->findAll(),
+            'perintah_pengiriman' => $perintahPengirimanModel->orderBy('tanggal', 'DESC')->findAll(),
         ];
         return view('produksi/pengiriman/form_pengiriman', $data);
     }
+    // ENDPOINT AJAX: Ambil detail perintah pengiriman (outlet & item)
+    public function getPerintahPengirimanDetail($id)
+    {
+        $outletModel = new \App\Models\OutletModel();
+        $perintahPengirimanOutletModel = new \App\Models\PerintahPengirimanOutletModel();
+        $perintahPengirimanDetailModel = new \App\Models\PerintahPengirimanDetailModel();
+        $outletRows = $perintahPengirimanOutletModel->where('perintah_pengiriman_id', $id)->findAll();
+        $result = [];
+        foreach ($outletRows as $outlet) {
+            $items = $perintahPengirimanDetailModel->where('perintah_pengiriman_outlet_id', $outlet['id'])->findAll();
+            $itemArr = [];
+            foreach ($items as $item) {
+                $itemArr[] = [
+                    'tipe' => $item['tipe'],
+                    'barang_id' => $item['barang_id'],
+                    'nama_barang' => $item['nama_barang'],
+                    'jumlah' => $item['jumlah'],
+                    'satuan' => $item['satuan'],
+                ];
+            }
+            $result[] = [
+                'outlet_id' => $outlet['outlet_id'],
+                'nama_outlet' => $outletModel->find($outlet['outlet_id'])['nama_outlet'] ?? $outlet['outlet_id'],
+                'keterangan' => $outlet['keterangan'],
+                'items' => $itemArr
+            ];
+        }
+        return $this->response->setJSON(['success' => true, 'data' => $result]);
+    }
+
 
     public function pengirimanSimpan()
     {
         $notifikasiModel = new \App\Models\NotifikasiModel();
         $bsjModel = new \App\Models\BSJModel();
         $bahanModel = new \App\Models\BahanModel();
-
-        $tanggal = $this->request->getPost('tanggal');
-        $outletId = $this->request->getPost('outlet_id');
-        $barangData = $this->request->getPost('barang');
-        $catatan = $this->request->getPost('catatan');
         $kartubsjModel = new \App\Models\KartuPersediaanBSJModel();
         $kartuModel = new \App\Models\KartuPersediaanModel();
+        $pengirimanModel = new \App\Models\PengirimanModel();
+        $pengirimanDetailModel = new \App\Models\PengirimanDetailModel();
 
-        if (!$tanggal || !$outletId || !$barangData) {
+
+        $tanggal = $this->request->getPost('tanggal');
+        $catatan = $this->request->getPost('catatan');
+        $perintahPengirimanId = $this->request->getPost('perintah_pengiriman_id');
+        $outletForm = $this->request->getPost('outlet'); // array dari form: outlet[x][id_outlet], dst
+
+        // Mapping ulang agar $outlets = [ ['outlet_id'=>, 'keterangan'=>, 'items'=>[...]], ... ]
+        $outlets = [];
+        if (is_array($outletForm)) {
+            foreach ($outletForm as $outletBlock) {
+                $outlet_id = $outletBlock['id_outlet'] ?? null;
+                $keterangan = $outletBlock['keterangan'] ?? null;
+                $items = [];
+                if (isset($outletBlock['items']) && is_array($outletBlock['items'])) {
+                    foreach ($outletBlock['items'] as $item) {
+                        $items[] = [
+                            'tipe' => $item['jenis'] ?? null,
+                            'barang_id' => $item['id_barang'] ?? null,
+                            'jumlah' => $item['jumlah'] ?? null,
+                            'satuan' => $item['satuan'] ?? null,
+                            'nama_barang' => $item['nama_barang'] ?? null,
+                        ];
+                    }
+                }
+                $outlets[] = [
+                    'outlet_id' => $outlet_id,
+                    'keterangan' => $keterangan,
+                    'items' => $items
+                ];
+            }
+        }
+
+        if (!$tanggal || !$outlets || !is_array($outlets) || count($outlets) == 0) {
             return redirect()->back()->with('error', 'Semua field harus diisi.');
         }
 
@@ -1159,94 +1420,115 @@ class Produksi extends BaseController
         $db->transStart();
 
         try {
-            // 1. Insert ke tabel pengiriman
-            $pengirimanModel = new \App\Models\PengirimanModel();
-            $pengirimanData = [
-                'tanggal' => $tanggal,
-                'user_id' => user_id(),
-                'outlet_id' => $outletId,
-                'catatan' => $catatan,
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-
-            $pengirimanModel->insert($pengirimanData);
-            $pengirimanId = $pengirimanModel->getInsertID();
-
-            // 2. Insert detail pengiriman dan update stok BSJ/bahan
-            $pengirimanDetailModel = new \App\Models\PengirimanDetailModel();
-            foreach ($barangData as $barang) {
-                $tipe = $barang['tipe'] ?? null;
-                $barangId = $barang['barang_id'] ?? null;
-                $jumlah = $barang['jumlah'] ?? 0;
-                $satuan = $barang['satuan'] ?? '';
-                $namaBarang = '-';
-                if ($tipe === 'bsj') {
-                    $bsj = $bsjModel->find($barangId);
-                    if (!$bsj || $bsj['stok'] < $jumlah) {
-                        $db->transRollback();
-                        return redirect()->back()->with('error', 'Stok BSJ tidak cukup.');
-                    }
-                    $namaBarang = $bsj['nama'];
-                    $bsjModel->update($barangId, [
-                        'stok' => $bsj['stok'] - $jumlah
-                    ]);
-                    // Catat ke kartu persediaan BSJ
-                    $kartubsjModel->save([
-                        'bsj_id'     => $bsj['id'],
-                        'tanggal'    => date('Y-m-d'),
-                        'jenis'      => 'keluar',
-                        'jumlah'     => $jumlah,
-                        'keterangan' => 'Pengiriman No: ' . $pengirimanId
-                    ]);
-                } elseif ($tipe === 'bahan') {
-                    $bahan = $bahanModel->find($barangId);
-                    if (!$bahan || $bahan['stok'] < $jumlah) {
-                        $db->transRollback();
-                        return redirect()->back()->with('error', 'Stok bahan tidak cukup.');
-                    }
-                    $namaBarang = $bahan['nama'];
-                    $satuan = strtolower($bahan['satuan']);
-                    $hargaSatuan = $bahan['harga_satuan'];
-
-                    // Hitung stok baru
-                    $stokBaru = $bahan['stok'] - $jumlah;
-
-                    // Hitung saldo baru dengan konversi tampilan
-                    $stokBaruTampil = ($satuan === 'kg' || $satuan === 'liter') ? $stokBaru / 1000 : $stokBaru;
-                    $saldoBaru = $stokBaruTampil * $hargaSatuan;
-
-                    // ✅ Update stok dan saldo bahan
-                    $bahanModel->update($barangId, [
-                        'stok' => $stokBaru,
-                        'saldo' => $saldoBaru
-                    ]);
-                    // Catat ke kartu persediaan bahan
-                    $kartuModel->save([
-                        'bahan_id'   => $bahan['id'],
-                        'tanggal'    => date('Y-m-d'),
-                        'jenis'      => 'keluar',
-                        'jumlah'     => $jumlah,
-                        'keterangan' => 'Pengiriman No: ' . $pengirimanId
-                    ]);
-                } else {
+            $outletModel = new \App\Models\OutletModel();
+            foreach ($outlets as $outletBlock) {
+                $outletId = $outletBlock['outlet_id'] ?? null;
+                $keterangan = $outletBlock['keterangan'] ?? null;
+                $items = $outletBlock['items'] ?? [];
+                if (!$outletId || !is_array($items) || count($items) == 0) {
                     $db->transRollback();
-                    return redirect()->back()->with('error', 'Tipe barang tidak valid.');
+                    return redirect()->back()->with('error', 'Data outlet atau item tidak valid.');
                 }
-                $pengirimanDetailModel->insert([
-                    'pengiriman_id' => $pengirimanId,
-                    'barang_id' => $barangId,
-                    'tipe_barang' => $tipe,
-                    'nama_barang' => $namaBarang,
-                    'jumlah' => $jumlah,
-                    'satuan' => $satuan
-                ]);
-            }
+                // Ambil nama outlet
+                $outletRow = $outletModel->find($outletId);
+                $namaOutlet = $outletRow['nama_outlet'] ?? '';
+                // 1. Insert ke tabel pengiriman (satu pengiriman per outlet)
+                $pengirimanData = [
+                    'tanggal' => $tanggal,
+                    'user_id' => user_id(),
+                    'outlet_id' => $outletId,
+                    'catatan' => $catatan,
+                    'keterangan' => $keterangan,
+                    'perintah_pengiriman_id' => $perintahPengirimanId,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ];
+                // Simpan nama outlet jika ada kolomnya, jika tidak, tambahkan ke keterangan
+                if (array_key_exists('nama_outlet', $pengirimanModel->allowedFields ?? [])) {
+                    $pengirimanData['nama_outlet'] = $namaOutlet;
+                } else {
+                    // Tambahkan ke keterangan jika belum ada
+                    if ($namaOutlet && (empty($keterangan) || strpos($keterangan, $namaOutlet) === false)) {
+                        $pengirimanData['keterangan'] = trim(($keterangan ? $keterangan . ' ' : '') . '[Outlet: ' . $namaOutlet . ']');
+                    }
+                }
+                $pengirimanModel->insert($pengirimanData);
+                $pengirimanId = $pengirimanModel->getInsertID();
 
-            // 3. Kirim notifikasi ke penjualan outlet tujuan pakai helper
-            helper('notifikasi_helper');
-            $isi = 'Ada pengiriman barang baru untuk outlet Anda';
-            $pengirimRole = in_groups('produksi') ? 'produksi' : 'unknown';
-            kirimNotifikasi('penjualan', 'pengiriman', $isi, $pengirimanId, $outletId, $pengirimRole);
+                // 2. Insert detail pengiriman dan update stok BSJ/bahan
+                foreach ($items as $barang) {
+                    $tipe = $barang['tipe'] ?? null;
+                    $barangId = $barang['barang_id'] ?? null;
+                    $jumlah = $barang['jumlah'] ?? 0;
+                    $satuan = $barang['satuan'] ?? '';
+                    $namaBarang = $barang['nama_barang'] ?? '-';
+                    if ($tipe === 'bsj') {
+                        $bsj = $bsjModel->find($barangId);
+                        if (!$bsj || $bsj['stok'] < $jumlah) {
+                            $db->transRollback();
+                            return redirect()->back()->with('error', 'Stok BSJ tidak cukup untuk ' . ($bsj['nama'] ?? 'BSJ'));
+                        }
+                        $namaBarang = $bsj['nama'];
+                        $bsjModel->update($barangId, [
+                            'stok' => $bsj['stok'] - $jumlah
+                        ]);
+                        // Catat ke kartu persediaan BSJ
+                        $kartubsjModel->save([
+                            'bsj_id'     => $bsj['id'],
+                            'tanggal'    => date('Y-m-d'),
+                            'jenis'      => 'keluar',
+                            'jumlah'     => $jumlah,
+                            'keterangan' => 'Pengiriman No: ' . $pengirimanId
+                        ]);
+                    } elseif ($tipe === 'bahan') {
+                        $bahan = $bahanModel->find($barangId);
+                        if (!$bahan || $bahan['stok'] < $jumlah) {
+                            $db->transRollback();
+                            return redirect()->back()->with('error', 'Stok bahan tidak cukup untuk ' . ($bahan['nama'] ?? 'Bahan'));
+                        }
+                        $namaBarang = $bahan['nama'];
+                        $satuan = strtolower($bahan['satuan']);
+                        $hargaSatuan = $bahan['harga_satuan'];
+
+                        // Hitung stok baru
+                        $stokBaru = $bahan['stok'] - $jumlah;
+
+                        // Hitung saldo baru dengan konversi tampilan
+                        $stokBaruTampil = ($satuan === 'kg' || $satuan === 'liter') ? $stokBaru / 1000 : $stokBaru;
+                        $saldoBaru = $stokBaruTampil * $hargaSatuan;
+
+                        // ✅ Update stok dan saldo bahan
+                        $bahanModel->update($barangId, [
+                            'stok' => $stokBaru,
+                            'saldo' => $saldoBaru
+                        ]);
+                        // Catat ke kartu persediaan bahan
+                        $kartuModel->save([
+                            'bahan_id'   => $bahan['id'],
+                            'tanggal'    => date('Y-m-d'),
+                            'jenis'      => 'keluar',
+                            'jumlah'     => $jumlah,
+                            'keterangan' => 'Pengiriman No: ' . $pengirimanId
+                        ]);
+                    } else {
+                        $db->transRollback();
+                        return redirect()->back()->with('error', 'Tipe barang tidak valid.');
+                    }
+                    $pengirimanDetailModel->insert([
+                        'pengiriman_id' => $pengirimanId,
+                        'barang_id' => $barangId,
+                        'tipe' => $tipe,
+                        'nama_barang' => $namaBarang,
+                        'jumlah' => $jumlah,
+                        'satuan' => $satuan
+                    ]);
+                }
+
+                // 3. Kirim notifikasi ke penjualan outlet tujuan pakai helper
+                helper('notifikasi_helper');
+                $isi = 'Ada pengiriman barang baru untuk outlet Anda';
+                $pengirimRole = in_groups('produksi') ? 'produksi' : 'unknown';
+                kirimNotifikasi('penjualan', 'pengiriman', $isi, $pengirimanId, $outletId, $pengirimRole);
+            }
 
             $db->transCommit();
             return redirect()->to('/produksi/pengiriman')->with('success', 'Form pengiriman berhasil disimpan dan notifikasi telah dikirim.');
@@ -1275,6 +1557,7 @@ class Produksi extends BaseController
             $satuan = $d['satuan'] ?? '-';
             $barang[] = [
                 'nama'   => $d['nama_barang'] ?? '-',
+                'tipe'   => $d['tipe'] ?? '-',
                 'jumlah' => strtolower($satuan) === 'gram' ? $jumlah / 1000 : $jumlah,
                 'satuan' => strtolower($satuan) === 'gram' ? 'kg' : $satuan
             ];
@@ -1336,6 +1619,7 @@ class Produksi extends BaseController
 
         $bahanModel = new \App\Models\BahanModel();
         $kartuModel = new \App\Models\KartuPersediaanModel();
+        $detailPembelianModel = new \App\Models\DetailPembelianModel();
 
         $bahan = $bahanModel->findAll();
         $bahanId = $this->request->getGet('bahan_id');
@@ -1346,18 +1630,31 @@ class Produksi extends BaseController
 
         $saldo_qty = 0;
         $saldo_harga = 0;
+        $saldo_awal_qty = 0;
+        $saldo_awal_harga = 0;
+        $satuan_awal = '';
         $kartu = [];
-        $harga_satuan = 0;
         $satuan = '';
+        $bahanData = null;
         if ($bahanId) {
             $bahanData = $bahanModel->find($bahanId);
-            $harga_satuan = $bahanData['harga_satuan'] ?? 0;
             $satuan = strtolower($bahanData['satuan'] ?? '');
+            $satuan_awal = $satuan;
+            // Saldo awal diambil dari stok dan saldo di tabel bahan
+            if ($bahanData) {
+                if (in_array($satuan, ['kg', 'liter'])) {
+                    $saldo_awal_qty = $bahanData['stok'] / 1000;
+                } else {
+                    $saldo_awal_qty = $bahanData['stok'];
+                }
+                $saldo_awal_harga = $bahanData['saldo'];
+            }
+            // Set saldo_qty dan saldo_harga awal
+            $saldo_qty = $saldo_awal_qty;
+            $saldo_harga = $saldo_awal_harga;
         }
 
         foreach ($rawData as $item) {
-            // Selalu bagi jumlah di database dengan 1000
-            // Bagi 1000 hanya jika satuan adalah kg atau liter
             if (in_array($satuan, ['kg', 'liter'])) {
                 $jumlah_db = $item['jumlah'] / 1000;
             } else {
@@ -1365,11 +1662,36 @@ class Produksi extends BaseController
             }
             $masuk_qty = $item['jenis'] === 'masuk' ? $jumlah_db : 0;
             $keluar_qty = $item['jenis'] === 'keluar' ? $jumlah_db : 0;
-            $harga = $harga_satuan;
+
+            $harga = 0;
             if ($item['jenis'] === 'masuk') {
+                // Cari detail pembelian berdasarkan pembelian_id jika ada di kartu persediaan
+                $detail = null;
+                if (isset($item['pembelian_id'])) {
+                    $detail = $detailPembelianModel
+                        ->where('pembelian_id', $item['pembelian_id'])
+                        ->where('bahan_id', $bahanId)
+                        ->where('jumlah', $item['jumlah'])
+                        ->orderBy('id', 'ASC')
+                        ->first();
+                }
+                // Jika tidak ada pembelian_id, fallback ke pencocokan bahan_id dan jumlah saja (kurang akurat)
+                if (!$detail) {
+                    $detail = $detailPembelianModel
+                        ->where('bahan_id', $bahanId)
+                        ->where('jumlah', $item['jumlah'])
+                        ->orderBy('id', 'ASC')
+                        ->first();
+                }
+                if ($detail && isset($detail['harga_satuan'])) {
+                    $harga = $detail['harga_satuan'];
+                } else {
+                    $harga = isset($item['harga_satuan']) ? $item['harga_satuan'] : 0;
+                }
                 $saldo_qty += $masuk_qty;
                 $saldo_harga += $masuk_qty * $harga;
             } else {
+                $harga = $bahanData['harga_satuan'] ?? 0;
                 $saldo_qty -= $keluar_qty;
                 $saldo_harga -= $keluar_qty * $harga;
             }
@@ -1391,7 +1713,10 @@ class Produksi extends BaseController
             'tittle' => 'Kartu Persediaan Bahan',
             'bahan' => $bahan,
             'kartu' => $kartu,
-            'bahanId' => $bahanId
+            'bahanId' => $bahanId,
+            'saldo_awal_qty' => $saldo_awal_qty,
+            'saldo_awal_harga' => $saldo_awal_harga,
+            'satuan_awal' => $satuan_awal
         ]);
     }
 
@@ -1574,8 +1899,6 @@ class Produksi extends BaseController
             'kartu' => $kartu,
         ]);
     }
-
-
     public function formCetakProduksi()
     {
         if (!in_groups(['admin', 'produksi'])) {

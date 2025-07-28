@@ -36,8 +36,10 @@
                     <thead class="thead-dark">
                         <tr>
                             <th>No</th>
-                            <th>Nama Biaya</th>
+                            <th>Nama BOP</th>
+                            <th>Jenis BSJ</th>
                             <th>Jumlah Biaya</th>
+                            <th>Detail Biaya</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -47,8 +49,19 @@
                             <tr>
                                 <td><?= $no++ ?></td>
                                 <td><?= esc($b['nama']); ?></td>
-                                <td><?= 'Rp ' . number_format(esc($b['biaya']), 0, ',', '.'); ?></td>
-
+                                <td><?= esc($b['jenis_bsj'] ?? '-'); ?></td>
+                                <td><?= 'Rp ' . number_format(esc($b['biaya'] ?? 0), 0, ',', '.'); ?></td>
+                                <td>
+                                    <?php if (!empty($b['detail'])): ?>
+                                        <ul class="mb-0">
+                                            <?php foreach ($b['detail'] as $d): ?>
+                                                <li><?= esc($d['nama_biaya']); ?>: Rp <?= number_format($d['jumlah_biaya'], 0, ',', '.'); ?></li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    <?php else: ?>
+                                        <em>-</em>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <!-- tombol aksi -->
                                     <a class="btn btn-warning btn-sm" data-toggle="modal" data-target="#modalEditBOP<?= $b['id'] ?>">Edit</a>
@@ -67,21 +80,45 @@
         <form action="<?= base_url('admin/biaya/simpanBOP') ?>" method="post">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalTambahBOPLabel">Tambah Biaya</h5>
+                    <h5 class="modal-title" id="modalTambahBOPLabel">Tambah Biaya Overhead Pabrik</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Tutup">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
                 <div class="modal-body">
-
                     <div class="form-group">
-                        <label for="nama">Nama Biaya</label>
-                        <input type="text" name="nama" class="form-control" placeholder="Nama Biaya" required>
+                        <label for="nama">Nama BOP</label>
+                        <input type="text" name="nama" class="form-control" placeholder="Nama BOP" required>
                     </div>
                     <div class="form-group">
-                        <label for="biaya">Jumlah Biaya</label>
-                        <input type="text" name="biaya" class="form-control" placeholder="Rp">
+                        <label for="jenis_bsj">Jenis BSJ</label>
+                        <select name="jenis_bsj" class="form-control" required>
+                            <option value="">-- Pilih Jenis --</option>
+                            <option value="sedikit">Sedikit (&lt;500)</option>
+                            <option value="sedang">Sedang (500-1000)</option>
+                            <option value="banyak">Banyak (1000-1500)</option>
+                        </select>
                     </div>
+                    <div class="form-group">
+                        <label for="biaya">Jumlah Biaya Overhead</label>
+                        <input type="text" name="biaya" class="form-control" placeholder="Rp" required>
+                    </div>
+                    <hr>
+                    <label>Detail Biaya Overhead</label>
+                    <div id="detail-bop-list">
+                        <div class="form-row mb-2">
+                            <div class="col">
+                                <input type="text" name="nama_biaya[]" class="form-control" placeholder="Nama Biaya">
+                            </div>
+                            <div class="col">
+                                <input type="text" name="jumlah_biaya[]" class="form-control" placeholder="Jumlah Biaya">
+                            </div>
+                            <div class="col-auto">
+                                <button type="button" class="btn btn-danger btn-sm remove-detail-bop">Hapus</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-success btn-sm" id="add-detail-bop">Tambah Detail</button>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -102,13 +139,54 @@
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
-                            <label>Nama Biaya</label>
+                            <label>Nama BOP</label>
                             <input type="text" name="nama" class="form-control" value="<?= esc($b['nama']); ?>" required>
                         </div>
                         <div class="form-group">
-                            <label>Jumlah Biaya</label>
-                            <input type="text" name="biaya" class="form-control" value="<?= 'Rp ' . number_format(esc($b['biaya']), 0, ',', '.'); ?>">
+                            <label>Jenis BSJ</label>
+                            <select name="jenis_bsj" class="form-control" required>
+                                <option value="">-- Pilih Jenis --</option>
+                                <option value="sedikit" <?= ($b['jenis_bsj'] == 'sedikit') ? 'selected' : '' ?>>Sedikit (&lt;500)</option>
+                                <option value="sedang" <?= ($b['jenis_bsj'] == 'sedang') ? 'selected' : '' ?>>Sedang (500-1000)</option>
+                                <option value="banyak" <?= ($b['jenis_bsj'] == 'banyak') ? 'selected' : '' ?>>Banyak (1000-1500)</option>
+                            </select>
                         </div>
+                        <div class="form-group">
+                            <label>Jumlah Biaya Overhead</label>
+                            <input type="text" name="biaya" class="form-control" value="<?= esc($b['biaya'] ?? 0); ?>">
+                        </div>
+                        <hr>
+                        <label>Detail Biaya Overhead</label>
+                        <div id="edit-detail-bop-list-<?= $b['id'] ?>">
+                            <?php if (!empty($b['detail'])): ?>
+                                <?php foreach ($b['detail'] as $d): ?>
+                                    <div class="form-row mb-2">
+                                        <div class="col">
+                                            <input type="text" name="nama_biaya[]" class="form-control" value="<?= esc($d['nama_biaya']); ?>" placeholder="Nama Biaya">
+                                        </div>
+                                        <div class="col">
+                                            <input type="text" name="jumlah_biaya[]" class="form-control" value="<?= esc($d['jumlah_biaya']); ?>" placeholder="Jumlah Biaya">
+                                        </div>
+                                        <div class="col-auto">
+                                            <button type="button" class="btn btn-danger btn-sm remove-detail-bop">Hapus</button>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div class="form-row mb-2">
+                                    <div class="col">
+                                        <input type="text" name="nama_biaya[]" class="form-control" placeholder="Nama Biaya">
+                                    </div>
+                                    <div class="col">
+                                        <input type="text" name="jumlah_biaya[]" class="form-control" placeholder="Jumlah Biaya">
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn btn-danger btn-sm remove-detail-bop">Hapus</button>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        <button type="button" class="btn btn-success btn-sm add-edit-detail-bop" data-bop-id="<?= $b['id'] ?>">Tambah Detail</button>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -147,10 +225,58 @@
         this.value = formatRupiah(this.value, 'Rp ');
     });
 
+    // Format input detail biaya (modal tambah)
+    document.querySelectorAll('input[name="jumlah_biaya[]"]').forEach(function(input) {
+        input.addEventListener('keyup', function(e) {
+            this.value = formatRupiah(this.value, 'Rp ');
+        });
+    });
+
+    // Tambah baris detail biaya (modal tambah)
+    document.getElementById('add-detail-bop').addEventListener('click', function() {
+        var container = document.getElementById('detail-bop-list');
+        var row = document.createElement('div');
+        row.className = 'form-row mb-2';
+        row.innerHTML = `<div class="col"><input type="text" name="nama_biaya[]" class="form-control" placeholder="Nama Biaya"></div><div class="col"><input type="text" name="jumlah_biaya[]" class="form-control" placeholder="Jumlah Biaya"></div><div class="col-auto"><button type="button" class="btn btn-danger btn-sm remove-detail-bop">Hapus</button></div>`;
+        container.appendChild(row);
+        row.querySelector('input[name="jumlah_biaya[]"]').addEventListener('keyup', function(e) {
+            this.value = formatRupiah(this.value, 'Rp ');
+        });
+    });
+
+    // Hapus baris detail biaya (modal tambah)
+    document.getElementById('detail-bop-list').addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-detail-bop')) {
+            e.target.closest('.form-row').remove();
+        }
+    });
+
     // Format input saat mengetik (modal edit)
     <?php foreach ($bop as $b) : ?>
         document.querySelector('#modalEditBOP<?= $b['id'] ?> input[name="biaya"]').addEventListener('keyup', function(e) {
             this.value = formatRupiah(this.value, 'Rp ');
+        });
+        document.querySelectorAll('#modalEditBOP<?= $b['id'] ?> input[name="jumlah_biaya[]"]').forEach(function(input) {
+            input.addEventListener('keyup', function(e) {
+                this.value = formatRupiah(this.value, 'Rp ');
+            });
+        });
+        // Tambah baris detail biaya (modal edit)
+        document.querySelector('#modalEditBOP<?= $b['id'] ?> .add-edit-detail-bop').addEventListener('click', function() {
+            var container = document.getElementById('edit-detail-bop-list-<?= $b['id'] ?>');
+            var row = document.createElement('div');
+            row.className = 'form-row mb-2';
+            row.innerHTML = `<div class="col"><input type="text" name="nama_biaya[]" class="form-control" placeholder="Nama Biaya"></div><div class="col"><input type="text" name="jumlah_biaya[]" class="form-control" placeholder="Jumlah Biaya"></div><div class="col-auto"><button type="button" class="btn btn-danger btn-sm remove-detail-bop">Hapus</button></div>`;
+            container.appendChild(row);
+            row.querySelector('input[name="jumlah_biaya[]"]').addEventListener('keyup', function(e) {
+                this.value = formatRupiah(this.value, 'Rp ');
+            });
+        });
+        // Hapus baris detail biaya (modal edit)
+        document.getElementById('edit-detail-bop-list-<?= $b['id'] ?>').addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-detail-bop')) {
+                e.target.closest('.form-row').remove();
+            }
         });
     <?php endforeach; ?>
 
@@ -158,12 +284,18 @@
     document.querySelector('form[action="<?= base_url('admin/biaya/simpanBOP') ?>"]').addEventListener('submit', function(e) {
         var biayaInput = this.querySelector('input[name="biaya"]');
         biayaInput.value = convertToAngka(biayaInput.value);
+        this.querySelectorAll('input[name="jumlah_biaya[]"]').forEach(function(input) {
+            input.value = convertToAngka(input.value);
+        });
     });
 
     <?php foreach ($bop as $b) : ?>
         document.querySelector('form[action="<?= base_url('admin/biaya/updateBOP/' . $b['id']) ?>"]').addEventListener('submit', function(e) {
             var biayaInput = this.querySelector('input[name="biaya"]');
             biayaInput.value = convertToAngka(biayaInput.value);
+            this.querySelectorAll('input[name="jumlah_biaya[]"]').forEach(function(input) {
+                input.value = convertToAngka(input.value);
+            });
         });
     <?php endforeach; ?>
 </script>

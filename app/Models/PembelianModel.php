@@ -8,15 +8,18 @@ class PembelianModel extends Model
 {
     protected $table = 'pembelian';
     protected $primaryKey = 'id';
+
     protected $allowedFields = [
-        'no_nota',
-        'pemasok_id',
         'tanggal',
-        'bahan_id',
-        'total',
+        'perintah_kerja_id',
+        'total_harga',
+        'pemasok_id',
+        'tipe_pembayaran',
         'bukti_transaksi',
-        'jenis_pembelian',
-        'status_barang'
+        'created_at',
+        'updated_at'
     ];
+
     protected $useTimestamps = true;
+    protected $createdField = 'created_at';
 }

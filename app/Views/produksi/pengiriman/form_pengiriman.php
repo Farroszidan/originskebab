@@ -8,116 +8,164 @@
         <?= csrf_field() ?>
 
         <div class="form-row">
-            <div class="form-group col-md-6">
+            <div class="form-group col-md-4">
+                <label for="perintah_pengiriman_id">Perintah Pengiriman</label>
+                <select name="perintah_pengiriman_id" id="perintah_pengiriman_id" class="form-control" required>
+                    <option value="">-- Pilih Perintah Pengiriman --</option>
+                    <?php if (isset($perintah_pengiriman) && is_array($perintah_pengiriman)): ?>
+                        <?php foreach ($perintah_pengiriman as $pp): ?>
+                            <option value="<?= $pp['id'] ?>">[<?= $pp['id'] ?>] <?= date('d-m-Y', strtotime($pp['tanggal'])) ?> <?= esc($pp['keterangan']) ?></option>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </select>
+            </div>
+            <div class="form-group col-md-4">
                 <label for="tanggal">Tanggal Pengiriman</label>
                 <input type="date" name="tanggal" class="form-control" required>
             </div>
-            <div class="form-group col-md-6">
-                <label for="outlet_id">Outlet Tujuan</label>
-                <select name="outlet_id" id="outlet_id" class="form-control" required>
-                    <option value="">-- Pilih Outlet --</option>
-                    <?php foreach ($outlets as $outlet): ?>
-                        <option value="<?= $outlet['id'] ?>"><?= $outlet['nama_outlet'] ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="form-group col-md-4">
+                <label for="catatan">Catatan</label>
+                <input type="text" name="catatan" class="form-control">
             </div>
         </div>
 
-        <div class="card mb-4">
-            <div class="card-header">
-                <h6 class="m-0 font-weight-bold text-primary">Detail Barang</h6>
-            </div>
-            <div class="card-body">
-                <div id="barang-container">
-                    <!-- Container untuk item barang -->
-                </div>
-                <button type="button" class="btn btn-sm btn-success mt-2" onclick="tambahBarang()">
-                    <i class="fas fa-plus"></i> Tambah Barang
-                </button>
-            </div>
+        <div id="outlet-list">
+            <!-- Blok outlet & item akan diisi otomatis oleh JS -->
         </div>
-
-        <div class="form-group">
-            <label for="catatan">Catatan</label>
-            <textarea name="catatan" class="form-control" rows="3"></textarea>
-        </div>
+        <button type="button" class="btn btn-success mb-3" id="addOutletBtn">+ Tambah Outlet Tujuan</button>
 
         <div class="mt-4">
             <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Kirim</button>
-            <button type="reset" class="btn btn-secondary ml-2"><i class="fas fa-undo"></i> Reset</button>
-            <button type="button" class="btn btn-secondary ml-2" onclick="window.history.back();"><i class="fas fa-undo"></i> Kembali</button>
+            <a href="<?= base_url('produksi/pengiriman') ?>" class="btn btn-secondary ml-2"><i class="fas fa-times"></i> Batal</a>
         </div>
     </form>
 </div>
 
 <script>
-    let indexBarang = 0;
-    // Data barang dari PHP ke JS
-    const barangBSJ = <?= json_encode($barang_bsj) ?>;
-    const barangBahan = <?= json_encode($bahan) ?>;
+    // Data dari backend
+    const outletsData = <?= json_encode($outlets) ?>;
+    const bsjData = <?= json_encode($barang_bsj) ?>;
+    const bahanData = <?= json_encode($bahan) ?>;
+    let outletCounter = 0;
 
-    function tambahBarang() {
-        const container = document.getElementById('barang-container');
-        const div = document.createElement('div');
-        div.className = "form-row align-items-center mb-3";
-        div.innerHTML = `
-            <div class="col-md-2">
-                <select name="barang[${indexBarang}][tipe]" class="form-control tipe-barang" required onchange="updateBarangSelect(this, ${indexBarang})">
-                    <option value="">-- Tipe --</option>
-                    <option value="bsj">BSJ</option>
-                    <option value="bahan">Bahan Baku</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <select name="barang[${indexBarang}][barang_id]" class="form-control barang-select" required disabled onchange="updateSatuan(this, ${indexBarang})">
-                    <option value="">-- Pilih Barang --</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <input type="number" name="barang[${indexBarang}][jumlah]" class="form-control" placeholder="Jumlah" required min="1" step="1">
-            </div>
-            <div class="col-md-2">
-                <input type="text" name="barang[${indexBarang}][satuan]" class="form-control satuan-barang" value="" readonly required>
-            </div>
-            <div class="col-md-2">
-                <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        `;
-        container.appendChild(div);
-        indexBarang++;
-    }
+    // Tambah outlet manual
+    document.getElementById('addOutletBtn').addEventListener('click', function() {
+        createOutletBlock(outletCounter++);
+    });
 
-    // Update dropdown barang sesuai tipe
-    function updateBarangSelect(select, idx) {
-        const tipe = select.value;
-        const row = select.closest('.form-row');
-        const barangSelect = row.querySelector('.barang-select');
-        barangSelect.innerHTML = '<option value="">-- Pilih Barang --</option>';
-        barangSelect.disabled = false;
-        let data = [];
-        if (tipe === 'bsj') {
-            data = barangBSJ;
-        } else if (tipe === 'bahan') {
-            data = barangBahan;
-        }
-        data.forEach(item => {
-            barangSelect.innerHTML += `<option value="${item.id}" data-satuan="${item.satuan}" data-stok="${item.stok}">${item.nama} (Stok: ${item.stok})</option>`;
+    // Saat pilih perintah pengiriman, ambil data outlet & item
+    document.getElementById('perintah_pengiriman_id').addEventListener('change', function(e) {
+        const id = e.target.value;
+        if (!id) return;
+        fetch('<?= base_url('produksi/pengiriman/get-perintah-pengiriman-detail') ?>/' + id)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    renderOutletsFromPerintah(data.data);
+                }
+            });
+    });
+
+    function renderOutletsFromPerintah(data) {
+        // data: [{outlet_id, nama_outlet, keterangan, items: [{tipe, barang_id, nama_barang, jumlah, satuan}]}]
+        const outletList = document.getElementById('outlet-list');
+        outletList.innerHTML = '';
+        outletCounter = 0;
+        data.forEach(outlet => {
+            createOutletBlock(outletCounter, outlet);
+            outletCounter++;
         });
-        // Reset satuan
-        const satuanInput = row.querySelector('.satuan-barang');
-        if (satuanInput) satuanInput.value = '';
     }
 
-    // Update satuan otomatis saat barang dipilih
-    function updateSatuan(select, idx) {
-        const selected = select.options[select.selectedIndex];
-        const satuan = selected.getAttribute('data-satuan') || '';
-        const row = select.closest('.form-row');
-        if (row) {
-            const satuanInput = row.querySelector('.satuan-barang');
-            if (satuanInput) satuanInput.value = satuan;
+    function createOutletBlock(index, outletData = null) {
+        const outletList = document.getElementById('outlet-list');
+        const outletBlock = document.createElement('div');
+        outletBlock.classList.add('card', 'mb-3');
+        let outletOptions = outletsData.map(o => `<option value="${o.id}" ${outletData && outletData.outlet_id == o.id ? 'selected' : ''}>${o.nama_outlet}</option>`).join('');
+        outletBlock.innerHTML = `
+        <div class="card-body" data-index="${index}">
+            <div class="form-group">
+                <label>Outlet Tujuan</label>
+                <select name="outlet[${index}][id_outlet]" class="form-control outlet-select" required>
+                    <option value="">-- Pilih Outlet --</option>
+                    ${outletOptions}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Keterangan (opsional)</label>
+                <input type="text" name="outlet[${index}][keterangan]" class="form-control" value="${outletData && outletData.keterangan ? outletData.keterangan : ''}">
+            </div>
+            <hr>
+            <h6>Item yang Dikirim</h6>
+            <div class="item-list" data-index="${index}"></div>
+            <button type="button" class="btn btn-sm btn-outline-success mt-2 add-item-btn" data-index="${index}">+ Tambah Item</button>
+        </div>
+        `;
+        outletList.appendChild(outletBlock);
+        // Jika ada data item, render
+        if (outletData && Array.isArray(outletData.items)) {
+            outletData.items.forEach((item, idx) => {
+                createItemRow(index, idx, item);
+            });
+        }
+    }
+
+    // Event delegation untuk tambah item dan hapus item
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('add-item-btn')) {
+            const index = e.target.dataset.index;
+            const itemList = document.querySelector(`.item-list[data-index="${index}"]`);
+            const itemIndex = itemList.children.length;
+            createItemRow(index, itemIndex);
+        }
+        if (e.target.classList.contains('remove-item-btn')) {
+            e.target.closest('.row').remove();
+        }
+    });
+
+    function createItemRow(outletIndex, itemIndex, itemData = null) {
+        const itemList = document.querySelector(`.item-list[data-index="${outletIndex}"]`);
+        const row = document.createElement('div');
+        row.classList.add('row', 'mb-2', 'align-items-end');
+        row.innerHTML = `
+        <div class="col-md-2">
+            <label>Jenis</label>
+            <select name="outlet[${outletIndex}][items][${itemIndex}][jenis]" class="form-control jenis-select" required>
+                <option value="">Pilih</option>
+                <option value="bsj" ${itemData && itemData.tipe === 'bsj' ? 'selected' : ''}>BSJ</option>
+                <option value="bahan" ${itemData && itemData.tipe === 'bahan' ? 'selected' : ''}>Bahan</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label>Nama Barang</label>
+            <select name="outlet[${outletIndex}][items][${itemIndex}][id_barang]" class="form-control barang-select" required>
+                <option value="">Pilih Barang</option>
+            </select>
+            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][nama_barang]" class="input-nama-barang" value="${itemData ? itemData.nama_barang : ''}">
+        </div>
+        <div class="col-md-2">
+            <label>Jumlah</label>
+            <input type="number" name="outlet[${outletIndex}][items][${itemIndex}][jumlah]" class="form-control" required min="1" value="${itemData ? itemData.jumlah : ''}">
+        </div>
+        <div class="col-md-2">
+            <label>Satuan</label>
+            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][satuan]" class="input-satuan" value="${itemData ? itemData.satuan : ''}">
+            <input type="text" class="form-control satuan" value="${itemData ? itemData.satuan : ''}" disabled>
+        </div>
+        <div class="col-md-2">
+            <button type="button" class="btn btn-danger btn-sm remove-item-btn">Hapus</button>
+        </div>
+        `;
+        itemList.appendChild(row);
+        // Populate barang-select jika ada data
+        const jenisSelect = row.querySelector('.jenis-select');
+        const barangSelect = row.querySelector('.barang-select');
+        if (itemData) {
+            let dataArr = itemData.tipe === 'bsj' ? bsjData : bahanData;
+            barangSelect.innerHTML = '<option value="">Pilih Barang</option>';
+            dataArr.forEach(barang => {
+                barangSelect.innerHTML += `<option value="${barang.id}" data-satuan="${barang.satuan}" ${itemData.barang_id == barang.id ? 'selected' : ''}>${barang.nama}</option>`;
+            });
         }
     }
 </script>

@@ -212,9 +212,15 @@ class Admin extends BaseController
         if (!in_groups('admin')) return redirect()->to('login');
 
         $model = new BiayaOverheadModel();
+        $detailModel = new \App\Models\DetailBiayaOverheadModel();
+        $bop = $model->findAll();
+        // Ambil detail untuk setiap BOP
+        foreach ($bop as &$b) {
+            $b['detail'] = $detailModel->where('biaya_overhead_id', $b['id'])->findAll();
+        }
         $data = [
             'tittle' => 'Manajemen Biaya Overhead Pabrik',
-            'bop' => $model->findAll(),
+            'bop' => $bop,
         ];
         return view('admin/biaya/view_bop', $data);
     }
@@ -222,11 +228,91 @@ class Admin extends BaseController
     public function simpanBOP()
     {
         $model = new BiayaOverheadModel();
+        $detailModel = new \App\Models\DetailBiayaOverheadModel();
+        $jenis_bsj = $this->request->getPost('jenis_bsj');
+        $nama = $this->request->getPost('nama');
+        $biaya = $this->request->getPost('biaya');
+        // Simpan BOP utama
         $model->save([
-            'nama'     => $this->request->getPost('nama'),
-            'biaya' => $this->request->getPost('biaya'),
+            'nama'      => $nama,
+            'jenis_bsj' => $jenis_bsj,
+            'biaya'     => $biaya,
         ]);
-        return redirect()->to('admin/biaya/view_bop')->with('success', 'Data BOP berhasil ditambahkan.');
+        $bopId = $model->getInsertID();
+        // Simpan detail BOP
+        $nama_biaya = $this->request->getPost('nama_biaya'); // array
+        $jumlah_biaya = $this->request->getPost('jumlah_biaya'); // array
+        if ($nama_biaya && $jumlah_biaya) {
+            foreach ($nama_biaya as $i => $nm) {
+                if ($nm && isset($jumlah_biaya[$i])) {
+                    $detailModel->insert([
+                        'biaya_overhead_id' => $bopId,
+                        'nama_biaya' => $nm,
+                        'jumlah_biaya' => $jumlah_biaya[$i],
+                    ]);
+                }
+            }
+        }
+        return redirect()->to('admin/biaya/view_bop')->with('success', 'Data BOP dan detail berhasil ditambahkan.');
+    }
+    // DETAIL BOP
+    public function detailBOP($id)
+    {
+        $model = new BiayaOverheadModel();
+        $detailModel = new \App\Models\DetailBiayaOverheadModel();
+        $bop = $model->find($id);
+        $bop['detail'] = $detailModel->where('biaya_overhead_id', $id)->findAll();
+        $data = [
+            'tittle' => 'Detail Biaya Overhead Pabrik',
+            'bop' => $bop,
+        ];
+        return view('admin/biaya/detail_bop', $data);
+    }
+
+    // UPDATE BOP
+    public function updateBOP($id)
+    {
+        $model = new BiayaOverheadModel();
+        $detailModel = new \App\Models\DetailBiayaOverheadModel();
+        $jenis_bsj = $this->request->getPost('jenis_bsj');
+        $nama = $this->request->getPost('nama');
+        $biaya = $this->request->getPost('biaya');
+        // Update BOP utama
+        $model->update($id, [
+            'nama' => $nama,
+            'jenis_bsj' => $jenis_bsj,
+            'biaya' => $biaya,
+        ]);
+        // Hapus detail lama
+        $detailModel->where('biaya_overhead_id', $id)->delete();
+        // Simpan detail baru
+        $nama_biaya = $this->request->getPost('nama_biaya');
+        $jumlah_biaya = $this->request->getPost('jumlah_biaya');
+        if ($nama_biaya && $jumlah_biaya) {
+            foreach ($nama_biaya as $i => $n) {
+                if ($n && isset($jumlah_biaya[$i])) {
+                    $detailModel->save([
+                        'biaya_overhead_id' => $id,
+                        'nama_biaya' => $n,
+                        'jumlah_biaya' => $jumlah_biaya[$i],
+                    ]);
+                }
+            }
+        }
+        return redirect()->to('admin/biaya/view_bop')->with('success', 'Data BOP berhasil diupdate.');
+    }
+
+    // UPDATE TENAKER
+    public function updateTNK($id)
+    {
+        $model = new BiayaTenagaKerjaModel();
+        $nama = $this->request->getPost('nama');
+        $biaya = $this->request->getPost('biaya');
+        $model->update($id, [
+            'nama' => $nama,
+            'biaya' => $biaya,
+        ]);
+        return redirect()->to('admin/biaya/view_tenaker')->with('success', 'Data Biaya Tenaga Kerja berhasil diupdate.');
     }
 
     public function hapusTNK($id)
@@ -1279,7 +1365,8 @@ class Admin extends BaseController
                     'nama'     => $bahan['nama'],
                     'kategori' => $bahan['kategori'],
                     'jumlah'   => $bahan['jumlah'],
-                    'satuan'   => $bahan['satuan']
+                    'satuan'   => $bahan['satuan'],
+                    'pembulatan' => isset($bahan['pembulatan']) ? $bahan['pembulatan'] : null
                 ]);
             }
         }
@@ -1404,5 +1491,379 @@ class Admin extends BaseController
             $perintahKerjaModel->delete($id);
             return redirect()->to('admin/perintah-kerja')->with('success', 'Perintah kerja berhasil dihapus.');
         }
+    }
+
+    // Endpoint: Hitung kebutuhan produksi minimum outlet (kulit kebab, daging ayam, daging sapi)
+    public function autoKebutuhanProduksi()
+    {
+        if (!in_groups('admin')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Akses ditolak']);
+        }
+        $persediaanModel = new \App\Models\PersediaanOutletModel();
+        $outletModel = new \App\Models\OutletModel();
+        $outlets = $outletModel->findAll();
+        // Kode bahan harus sesuai dengan yang ada di persediaan_outlet
+        $kodeMap = [
+            'kulit_kebab' => 'BSJ01', // contoh kode kulit kebab
+            'daging_ayam' => 'BSJ02', // contoh kode daging ayam
+            'daging_sapi' => 'BSJ03', // contoh kode daging sapi
+        ];
+        $min = [
+            'kulit_kebab' => 200,
+            'daging_ayam' => 100,
+            'daging_sapi' => 100
+        ];
+        $result = [
+            'kulit_kebab' => 0,
+            'daging_ayam' => 0,
+            'daging_sapi' => 0
+        ];
+        foreach ($outlets as $outlet) {
+            foreach ($kodeMap as $key => $kode) {
+                // Ambil stok dari persediaan_outlet
+                $stok = $persediaanModel
+                    ->where('outlet_id', $outlet['id'])
+                    ->where('kode_bahan', $kode)
+                    ->select('jumlah')
+                    ->get()->getRowArray();
+                $jumlah = $stok ? (int)$stok['jumlah'] : 0;
+                $kurang = $min[$key] - $jumlah;
+                if ($kurang > 0) $result[$key] += $kurang;
+            }
+        }
+        return $this->response->setJSON(['success' => true, 'data' => $result]);
+    }
+
+    // ==================== PERINTAH PENGIRIMAN ====================
+    // INDEX
+    public function perintahPengirimanIndex()
+    {
+        if (!in_groups('admin')) {
+            return redirect()->to('login');
+        }
+
+        $pengirimanModel = new \App\Models\PerintahPengirimanModel();
+        $outletModel = new \App\Models\OutletModel();
+        $outletList = $outletModel->findAll();
+        $outletMap = [];
+        foreach ($outletList as $o) {
+            $outletMap[$o['id']] = $o['nama_outlet'];
+        }
+
+        $pengiriman_list = $pengirimanModel->findAll();
+        // Ambil outlet tujuan untuk setiap pengiriman
+        $pengirimanOutletModel = new \App\Models\PerintahPengirimanOutletModel();
+        foreach ($pengiriman_list as &$row) {
+            $row['outlets'] = $pengirimanOutletModel->where('perintah_pengiriman_id', $row['id'])->findAll();
+            // Tambahkan nama outlet
+            foreach ($row['outlets'] as &$outlet) {
+                $outlet['nama_outlet'] = $outletMap[$outlet['outlet_id']] ?? $outlet['outlet_id'];
+            }
+        }
+
+        $data = [
+            'tittle' => 'Daftar Perintah Pengiriman',
+            'pengiriman_list' => $pengiriman_list,
+        ];
+        return view('admin/perintah_pengiriman/index', $data);
+    }
+
+    // DETAIL
+    public function perintahPengirimanDetail($id)
+    {
+        if (!in_groups('admin')) {
+            return redirect()->to('login');
+        }
+
+        $pengirimanModel = new \App\Models\PerintahPengirimanModel();
+        $pengirimanOutletModel = new \App\Models\PerintahPengirimanOutletModel();
+        $pengirimanDetailModel = new \App\Models\PerintahPengirimanDetailModel();
+        $outletModel = new \App\Models\OutletModel();
+        $outletList = $outletModel->findAll();
+        $outletMap = [];
+        foreach ($outletList as $o) {
+            $outletMap[$o['id']] = $o['nama_outlet'];
+        }
+
+        $pengiriman = $pengirimanModel->find($id);
+        if (!$pengiriman) {
+            return redirect()->to('admin/perintah-pengiriman')->with('error', 'Data tidak ditemukan.');
+        }
+
+        $outlets = $pengirimanOutletModel->where('perintah_pengiriman_id', $id)->findAll();
+        foreach ($outlets as &$outlet) {
+            $outlet['nama_outlet'] = $outletMap[$outlet['outlet_id']] ?? $outlet['outlet_id'];
+        }
+
+        // Ambil detail item, join ke outlet tujuan
+        $detail = [];
+        $outletIds = array_column($outlets, 'id');
+        if (!empty($outletIds)) {
+            $detail = $pengirimanDetailModel
+                ->select('perintah_pengiriman_detail.*, perintah_pengiriman_outlet.outlet_id')
+                ->join('perintah_pengiriman_outlet', 'perintah_pengiriman_outlet.id = perintah_pengiriman_detail.perintah_pengiriman_outlet_id')
+                ->whereIn('perintah_pengiriman_outlet_id', $outletIds)
+                ->findAll();
+            foreach ($detail as &$d) {
+                $d['nama_outlet'] = $outletMap[$d['outlet_id']] ?? $d['outlet_id'];
+            }
+        }
+
+        $data = [
+            'tittle' => 'Detail Perintah Pengiriman',
+            'pengiriman' => $pengiriman,
+            'outlets' => $outlets,
+            'detail' => $detail,
+        ];
+        return view('admin/perintah_pengiriman/detail', $data);
+    }
+
+    // INPUT (form)
+    public function perintahPengirimanInput()
+    {
+        if (!in_groups('admin')) {
+            return redirect()->to('login');
+        }
+        $outletModel = new \App\Models\OutletModel();
+        $bsjModel = new \App\Models\BSJModel();
+        $bahanModel = new \App\Models\BahanModel();
+        // Ambil unique perintah_kerja_id dari detail_perintah_kerja
+        $perintahModel = new \App\Models\PerintahKerjaModel();
+        // Ambil unique admin_id dari tabel perintah_kerja
+        $builder = $perintahModel->builder();
+        $builder->select('admin_id, MIN(id) as id, MIN(tanggal) as tanggal');
+        $builder->groupBy('admin_id');
+        $adminBatches = $builder->get()->getResultArray();
+        $perintahKerjaData = [];
+        foreach ($adminBatches as $row) {
+            $perintahKerjaData[] = [
+                'id' => $row['id'],
+                'admin_id' => $row['admin_id'],
+                'tanggal' => $row['tanggal'],
+            ];
+        }
+        $data = [
+            'tittle' => 'Input Perintah Pengiriman',
+            'outlets' => $outletModel->findAll(),
+            'bsj' => $bsjModel->findAll(),
+            'bahan' => $bahanModel->findAll(),
+            'perintahKerjaData' => $perintahKerjaData,
+        ];
+        return view('admin/perintah_pengiriman/input', $data);
+    }
+
+    // SIMPAN
+    public function perintahPengirimanSimpan()
+    {
+        if (!in_groups('admin')) {
+            return redirect()->to('login');
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $pengirimanModel = new \App\Models\PerintahPengirimanModel();
+        $pengirimanOutletModel = new \App\Models\PerintahPengirimanOutletModel();
+        $pengirimanDetailModel = new \App\Models\PerintahPengirimanDetailModel();
+        $bsjModel = new \App\Models\BSJModel();
+
+        $tanggal = $this->request->getPost('tanggal');
+        $keterangan = $this->request->getPost('keterangan');
+        $outletData = $this->request->getPost('outlet'); // array: outlet[index][id_outlet], outlet[index][keterangan], outlet[index][items][itemIndex][...]
+
+        // Simpan perintah_pengiriman utama
+        $pengirimanModel->insert([
+            'tanggal' => $tanggal,
+            'keterangan' => $keterangan,
+        ]);
+        $pengiriman_id = $pengirimanModel->getInsertID();
+
+        // Simpan outlet tujuan dan detail item per outlet
+        if (is_array($outletData)) {
+            foreach ($outletData as $outlet) {
+                $outlet_id = $outlet['id_outlet'] ?? null;
+                $outlet_ket = $outlet['keterangan'] ?? null;
+                $items = $outlet['items'] ?? [];
+                if (!$outlet_id) continue;
+                $pengirimanOutletModel->insert([
+                    'perintah_pengiriman_id' => $pengiriman_id,
+                    'outlet_id' => $outlet_id,
+                    'keterangan' => $outlet_ket,
+                ]);
+                $pengiriman_outlet_id = $pengirimanOutletModel->getInsertID();
+                // Simpan detail item
+                if (is_array($items) && count($items) > 0) {
+                    foreach ($items as $item) {
+                        // Pastikan semua item diproses, baik bsj maupun bahan
+                        $nama_barang = $item['nama_barang'] ?? '';
+                        $satuan = $item['satuan'] ?? '';
+                        $tipe = $item['jenis'] ?? null;
+                        if (!empty($tipe)) {
+                            $tipe = strtolower($tipe);
+                        }
+                        // Jika nama_barang kosong dan id_barang ada, ambil dari BSJ
+                        if ((empty($nama_barang) || empty($satuan)) && !empty($item['id_barang'])) {
+                            $bsj = $bsjModel->where('id', $item['id_barang'])->first();
+                            if ($bsj) {
+                                if (empty($nama_barang)) {
+                                    $nama_barang = $bsj['nama'] ?? '';
+                                }
+                                if (empty($satuan)) {
+                                    $satuan = $bsj['satuan'] ?? '';
+                                }
+                                if (empty($tipe)) {
+                                    $tipe = 'bsj';
+                                }
+                            } else {
+                                if (empty($tipe)) {
+                                    $tipe = 'bahan';
+                                }
+                            }
+                        }
+                        // Fallback: jika tipe masih kosong, default ke 'bahan'
+                        if (empty($tipe)) {
+                            $tipe = 'bahan';
+                        }
+                        $tipe = strtolower($tipe);
+                        // Validasi minimal: id_barang, nama_barang, satuan, jumlah harus ada
+                        if (!empty($item['id_barang']) && !empty($nama_barang) && !empty($satuan) && !empty($item['jumlah'])) {
+                            $pengirimanDetailModel->insert([
+                                'perintah_pengiriman_outlet_id' => $pengiriman_outlet_id,
+                                'tipe' => $tipe,
+                                'barang_id' => $item['id_barang'],
+                                'nama_barang' => $nama_barang,
+                                'jumlah' => $item['jumlah'],
+                                'satuan' => $satuan,
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
+
+        $db->transComplete();
+        if ($db->transStatus() === false) {
+            return redirect()->back()->withInput()->with('error', 'Gagal menyimpan data.');
+        }
+        return redirect()->to('admin/perintah-pengiriman')->with('success', 'Perintah pengiriman berhasil disimpan.');
+    }
+
+    // HAPUS
+    public function perintahPengirimanHapus($id)
+    {
+        if (!in_groups('admin')) {
+            return redirect()->to('login');
+        }
+        $pengirimanModel = new \App\Models\PerintahPengirimanModel();
+        $pengirimanOutletModel = new \App\Models\PerintahPengirimanOutletModel();
+        $pengirimanDetailModel = new \App\Models\PerintahPengirimanDetailModel();
+
+        $outlets = $pengirimanOutletModel->where('perintah_pengiriman_id', $id)->findAll();
+        foreach ($outlets as $outlet) {
+            $pengirimanDetailModel->where('perintah_pengiriman_outlet_id', $outlet['id'])->delete();
+        }
+        $pengirimanOutletModel->where('perintah_pengiriman_id', $id)->delete();
+        $pengirimanModel->delete($id);
+        return redirect()->to('admin/perintah-pengiriman')->with('success', 'Data perintah pengiriman berhasil dihapus.');
+    }
+
+    public function getBSJByAdminId($adminId)
+    {
+        // Ambil semua perintah kerja (BSJ & bahan) dengan admin_id ini
+        $perintahKerjaModel = new \App\Models\PerintahKerjaModel();
+        // Data utama hanya dari tabel perintah_kerja (BSJ dan bahan produksi)
+        $list = $perintahKerjaModel->where('admin_id', $adminId)->findAll();
+        $result = [];
+        foreach ($list as $row) {
+            $result[] = [
+                'jenis' => strtolower($row['tipe']),
+                'id' => $row['id'],
+                'nama' => $row['nama'],
+                'jumlah' => $row['jumlah'],
+                'satuan' => $row['satuan'],
+            ];
+        }
+        // Jika ingin rangkuman bahan dari detail_perintah_kerja, tambahkan di sini sesuai instruksi khusus user
+        // Default: tidak ditambahkan kecuali diminta
+        return $this->response->setJSON($result);
+    }
+
+
+
+
+    // ==================== ENDPOINT AJAX UNTUK FORM PENGIRIMAN ====================
+    // 1. Ambil daftar perintah kerja berdasarkan outlet (untuk dropdown setelah pilih outlet)
+    public function perintahKerjaListByOutlet()
+    {
+        if (!in_groups('admin')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Akses ditolak']);
+        }
+        $outlet_id = $this->request->getGet('outlet_id');
+        if (!$outlet_id) {
+            return $this->response->setJSON(['success' => false, 'message' => 'ID outlet tidak ditemukan']);
+        }
+        // Ambil perintah kerja yang sudah selesai produksi dan siap dikirim ke outlet ini
+        $perintahModel = new \App\Models\PerintahKerjaModel();
+        $list = $perintahModel->orderBy('tanggal', 'DESC')->findAll();
+        // Map agar field yang dikirim ke JS selalu id, tanggal, nama
+        $result = [];
+        foreach ($list as $row) {
+            $result[] = [
+                'id' => isset($row['id']) ? $row['id'] : (isset($row['ID']) ? $row['ID'] : null),
+                'tanggal' => isset($row['tanggal']) ? $row['tanggal'] : (isset($row['Tanggal']) ? $row['Tanggal'] : ''),
+                'nama' => isset($row['nama']) ? $row['nama'] : (isset($row['Nama']) ? $row['Nama'] : ''),
+            ];
+        }
+        return $this->response->setJSON(['success' => true, 'data' => $result]);
+    }
+
+    // ENDPOINT: Ambil semua perintah kerja (BSJ) berdasarkan admin_id (untuk tabel BSJ di form pengiriman)
+    public function perintahKerjaByAdminIdJson()
+    {
+        if (!in_groups('admin')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Akses ditolak']);
+        }
+        $admin_id = $this->request->getGet('admin_id');
+        if (!$admin_id) {
+            return $this->response->setJSON(['success' => false, 'message' => 'admin_id tidak ditemukan']);
+        }
+        $perintahModel = new \App\Models\PerintahKerjaModel();
+        $list = $perintahModel->where('admin_id', $admin_id)->findAll();
+        // Hanya ambil tipe=bsj saja (jika ada tipe lain)
+        $result = [];
+        foreach ($list as $row) {
+            if (isset($row['tipe']) && strtolower($row['tipe']) === 'bsj') {
+                $result[] = [
+                    'id' => $row['id'],
+                    'nama' => $row['nama'],
+                    'jumlah' => $row['jumlah'],
+                    'satuan' => $row['satuan'],
+                ];
+            }
+        }
+        return $this->response->setJSON(['success' => true, 'data' => $result]);
+    }
+    // 2. Ambil detail BSJ (barang/jumlah) dari perintah kerja terpilih (untuk tabel item)
+    public function perintahKerjaDetailJson()
+    {
+        if (!in_groups('admin')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Akses ditolak']);
+        }
+        $perintah_kerja_id = $this->request->getGet('perintah_kerja_id');
+        if (!$perintah_kerja_id) {
+            return $this->response->setJSON(['success' => false, 'message' => 'ID perintah kerja tidak ditemukan']);
+        }
+        $detailModel = new \App\Models\DetailPerintahKerjaModel();
+        $bsjModel = new \App\Models\BSJModel();
+        $detail = $detailModel->where('perintah_kerja_id', $perintah_kerja_id)->findAll();
+        // Join ke tabel BSJ untuk ambil nama barang, satuan, dsb
+        foreach ($detail as &$d) {
+            $bsj = $bsjModel->where('nama', $d['nama'])->first();
+            if ($bsj) {
+                $d['kode_bsj'] = $bsj['kode'] ?? null;
+                $d['satuan'] = $bsj['satuan'] ?? null;
+            }
+        }
+        return $this->response->setJSON(['success' => true, 'data' => $detail]);
     }
 }

@@ -381,25 +381,26 @@
             '<th>Dibutuhkan</th>' +
             '<th>Stok</th>' +
             '<th>Kurang</th>' +
+            '<th>Pembulatan</th>' +
             '</tr></thead><tbody>';
 
         let adaYangKurang = false;
+        // Simpan juga pembulatan ke rangkuman
         rangkuman.forEach(b => {
             // Ambil stok bahan dari tabel bahan (bahanData)
             const stokData = bahanData.find(x => x.nama === b.nama && x.satuan === b.satuan);
-            // Pastikan stok berupa angka, default 0 jika tidak ada
             let stok = 0;
             if (stokData && stokData.stok !== undefined && stokData.stok !== null && stokData.stok !== '') {
                 stok = parseFloat(stokData.stok);
                 if (isNaN(stok)) stok = 0;
-                // Jika satuan kg/liter, stok dibagi 1000
                 if (b.satuan && (b.satuan.toLowerCase() === 'kg' || b.satuan.toLowerCase() === 'liter')) {
                     stok = stok / 1000;
                 }
             }
-            // Hitung kekurangan
             const kurang = b.jumlah - stok;
-            if (kurang > 0.0001) { // toleransi floating point
+            const pembulatan = kurang > 0 ? Math.ceil(kurang) : 0;
+            b.pembulatan = pembulatan; // tambahkan ke rangkuman
+            if (kurang > 0.0001) {
                 adaYangKurang = true;
                 kekuranganHTML += `<tr>
                     <td>${b.nama}</td>
@@ -407,15 +408,18 @@
                     <td>${b.jumlah.toFixed(2)} ${b.satuan}</td>
                     <td>${stok.toFixed(2)} ${b.satuan}</td>
                     <td><b>${kurang.toFixed(2)} ${b.satuan}</b></td>
+                    <td><b>${pembulatan} ${b.satuan}</b></td>
                 </tr>`;
             }
         });
 
         if (!adaYangKurang) {
-            kekuranganHTML += '<tr><td colspan="5" class="text-center">Semua bahan tersedia.</td></tr>';
+            kekuranganHTML += '<tr><td colspan="6" class="text-center">Semua bahan tersedia.</td></tr>';
         }
         kekuranganHTML += '</tbody></table>';
         document.getElementById('tabel-kekurangan-bahan').innerHTML = kekuranganHTML;
+        // Update input hidden rangkuman agar pembulatan ikut tersimpan
+        document.getElementById('input-rangkuman').value = JSON.stringify(rangkuman);
     });
 
     // Form submit: pastikan hidden input sudah terisi (fallback)

@@ -217,6 +217,10 @@ $routes->get('admin/biaya/view_tenaker', 'Admin::biayaTNK', ['filter' => 'role:a
 $routes->get('admin/biaya/view_bop', 'Admin::biayaBOP', ['filter' => 'role:admin']);
 $routes->post('admin/biaya/simpan', 'Admin::simpanTNK', ['filter' => 'role:admin']);
 $routes->post('admin/biaya/simpanBOP', 'Admin::simpanBOP', ['filter' => 'role:admin']);
+$routes->get('admin/biaya/detailBOP/(:num)', 'Admin::detailBOP/$1', ['filter' => 'role:admin']);
+$routes->post('admin/biaya/updateBOP/(:num)', 'Admin::updateBOP/$1', ['filter' => 'role:admin']);
+$routes->post('admin/biaya/updateTNK/(:num)', 'Admin::updateTNK/$1', ['filter' => 'role:admin']);
+$routes->post('admin/biaya/updateBOP/(:num)', 'Admin::updateBOP/$1', ['filter' => 'role:admin']);
 $routes->get('admin/biaya/delete/(:num)', 'Admin::hapusTNK/$1', ['filter' => 'role:admin']);
 $routes->get('admin/biaya/deleteBOP/(:num)', 'Admin::hapusBOP/$1', ['filter' => 'role:admin']);
 
@@ -237,20 +241,30 @@ $routes->group('admin/perintah-kerja', ['filter' => 'role:admin'], function ($ro
     $routes->get('hapus/(:num)', 'Admin::perintahKerjaHapus/$1');
 });
 
-// PRODUKSI PEMBELIAN
-$routes->group('produksi', ['filter' => 'role:produksi,admin'], function ($routes) {
-    $routes->add('/', 'Produksi::index');
-    $routes->get('pembelian', 'Produksi::pembelian');
-    $routes->get('pembelian/create', 'Produksi::createPembelian');
-    $routes->post('pembelian/simpan-pembelian', 'Produksi::simpanPembelian');
-    $routes->get('pembelian/delete/(:num)', 'Produksi::hapusPembelian/$1');
-    $routes->get('pembelian/detail/(:num)', 'Produksi::detailPembelian/$1');
-    $routes->get('pembelian/edit/(:num)', 'Produksi::editPembelian/$1');
-    $routes->post('pembelian/update/(:num)', 'Produksi::updatePembelian/$1');
-    $routes->get('pembelian/update-status/(:num)/(:any)', 'Produksi::updateStatusPembelian/$1/$2');
+// ADMIN PERINTAH PENGIRIMAN
+$routes->group('admin/perintah-pengiriman', ['filter' => 'role:admin'], function ($routes) {
+    $routes->get('/', 'Admin::perintahPengirimanIndex');
+    $routes->get('input', 'Admin::perintahPengirimanInput');
+    $routes->post('simpan', 'Admin::perintahPengirimanSimpan');
+    $routes->get('detail/(:num)', 'Admin::perintahPengirimanDetail/$1');
+    $routes->get('hapus/(:num)', 'Admin::perintahPengirimanHapus/$1');
+    $routes->get('batal', 'Admin::perintahPengirimanBatal');
+    // AJAX
+    // Endpoint AJAX untuk BSJ by admin_id (batch) pada perintah pengiriman
+    $routes->get('getBSJByAdminId/(:num)', 'Admin::getBSJByAdminId/$1');
 });
 
-// PRODUKSI PERSEDIAAN
+// PRODUKSI PEMBELIAN
+$routes->group('produksi', ['filter' => 'role:produksi'], function ($routes) {
+    $routes->get('pembelian', 'Produksi::pembelianIndex');
+    $routes->get('pembelian/tambah', 'Produksi::pembelianInput');
+    $routes->post('pembelian/simpan', 'Produksi::pembelianSimpan');
+    $routes->get('pembelian/detail/(:num)', 'Produksi::pembelianDetail/$1');
+    $routes->post('pembelian/hapus/(:num)', 'Produksi::hapusPembelian/$1');
+});
+// AJAX: get detail bahan dari perintah kerja untuk form pembelian
+$routes->get('produksi/pembelian/get_detail_perintah_kerja/(:num)', 'Produksi::get_detail_perintah_kerja/$1');
+
 //BAHAN MENTAH
 // PRODUKSI PERSEDIAAN
 $routes->group('produksi/persediaan', ['filter' => 'role:produksi,admin'], function ($routes) {
@@ -294,6 +308,8 @@ $routes->group('produksi/pengiriman', ['filter' => 'role:produksi,admin'], funct
     $routes->post('form-pengiriman/store', 'Produksi::pengirimanSimpan');
     $routes->get('detail/(:num)', 'Produksi::pengirimanDetail/$1');
     $routes->match(['get', 'post'], 'hapus/(:num)', 'Produksi::hapusPengiriman/$1');
+    // AJAX endpoint untuk ambil detail perintah pengiriman
+    $routes->get('get-perintah-pengiriman-detail/(:num)', 'Produksi::getPerintahPengirimanDetail/$1');
 });
 
 $routes->group('produksi/laporan', ['filter' => 'role:produksi,admin'], function ($routes) {

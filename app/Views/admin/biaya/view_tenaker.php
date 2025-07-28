@@ -94,7 +94,7 @@
 <?php foreach ($tenaker as $t) : ?>
     <div class="modal fade" id="modalEditTenaker<?= $t['id'] ?>" tabindex="-1" role="dialog" aria-labelledby="modalEditTenakerLabel<?= $t['id'] ?>" aria-hidden="true">
         <div class="modal-dialog" role="document">
-            <form action="<?= base_url('admin/biaya/update/' . $t['id']) ?>" method="post">
+            <form action="<?= base_url('admin/biaya/updateTNK/' . $t['id']) ?>" method="post">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Biaya Tenaga Kerja</h5>
@@ -107,7 +107,7 @@
                         </div>
                         <div class="form-group">
                             <label>Jumlah Biaya</label>
-                            <input type="text" name="biaya" class="form-control" value="<?= 'Rp ' . number_format(esc($t['biaya']), 0, ',', '.'); ?>">
+                            <input type="text" name="biaya" class="form-control" value="<?= esc($t['biaya']); ?>">
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -143,27 +143,15 @@
     }
 
     // Format input saat mengetik (modal tambah)
-    document.querySelector('input[name="biaya"]').addEventListener('keyup', function(e) {
-        this.value = formatRupiah(this.value, 'Rp ');
+    document.querySelector('input[name="biaya"]').addEventListener('input', function(e) {
+        // Pastikan hanya angka yang boleh diinput
+        this.value = this.value.replace(/[^0-9]/g, '');
     });
 
     // Format input saat mengetik (modal edit)
     <?php foreach ($tenaker as $t) : ?>
-        document.querySelector('#modalEditTenaker<?= $t['id'] ?> input[name="biaya"]').addEventListener('keyup', function(e) {
-            this.value = formatRupiah(this.value, 'Rp ');
-        });
-    <?php endforeach; ?>
-
-    // Sebelum form disubmit, konversi nilai Rupiah ke angka
-    document.querySelector('form[action="<?= base_url('admin/biaya/simpan') ?>"]').addEventListener('submit', function(e) {
-        var biayaInput = this.querySelector('input[name="biaya"]');
-        biayaInput.value = convertToAngka(biayaInput.value);
-    });
-
-    <?php foreach ($tenaker as $t) : ?>
-        document.querySelector('form[action="<?= base_url('admin/biaya/update/' . $t['id']) ?>"]').addEventListener('submit', function(e) {
-            var biayaInput = this.querySelector('input[name="biaya"]');
-            biayaInput.value = convertToAngka(biayaInput.value);
+        document.querySelector('#modalEditTenaker<?= $t['id'] ?> input[name="biaya"]').addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
         });
     <?php endforeach; ?>
 </script>

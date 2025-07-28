@@ -8,6 +8,6 @@ class BSJModel extends Model
 {
     protected $table = 'bsj';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['kode', 'nama', 'satuan', 'stok', 'kategori'];
+    protected $allowedFields = ['kode', 'nama', 'satuan', 'stok', 'kategori', 'harga', 'saldo'];
     protected $useTimestamps = true;
 }

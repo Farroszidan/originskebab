@@ -6,16 +6,20 @@ use CodeIgniter\Model;
 
 class DetailPembelianModel extends Model
 {
-    protected $table      = 'detail_pembelian';
+    protected $table = 'detail_pembelian';
     protected $primaryKey = 'id';
 
     protected $allowedFields = [
         'pembelian_id',
         'bahan_id',
+        'nama_bahan',
+        'kategori',
         'jumlah',
+        'satuan',
         'harga_satuan',
-        'subtotal'
+        'subtotal',
+        'pemasok_id',
+        'tipe_pembayaran',
+        'bukti_transaksi'
     ];
-
-    protected $useTimestamps = true;
 }

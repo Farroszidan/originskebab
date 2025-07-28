@@ -124,7 +124,7 @@
                     <a class="collapse-item" href="<?= base_url('produksi/hpp'); ?>">HPP BSJ</a>
                     <h6 class="collapse-header">Persediaan:</h6>
                     <a class="collapse-item" href="<?= base_url('produksi/persediaan'); ?>">Bahan</a>
-                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj'); ?>">Barang Setengah Jadi</a>
+                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj/'); ?>">Barang Setengah Jadi</a>
                     <a class="collapse-item" href="<?= base_url('produksi/pengiriman'); ?>">Pengiriman</a>
                 </div>
             </div>
@@ -304,7 +304,7 @@
                     <a class="collapse-item" href="<?= base_url('produksi/hpp'); ?>">HPP BSJ</a>
                     <h6 class="collapse-header">Persediaan:</h6>
                     <a class="collapse-item" href="<?= base_url('produksi/persediaan'); ?>">Bahan</a>
-                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj'); ?>">Barang Setengah Jadi</a>
+                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj/'); ?>">Barang Setengah Jadi</a>
                     <a class="collapse-item" href="<?= base_url('produksi/pengiriman'); ?>">Pengiriman</a>
                 </div>
             </div>
@@ -376,6 +376,7 @@
             <div id="collapseAdmin" class="collapse" data-parent="#accordionSidebar">
                 <div class="bg-white py-2 collapse-inner rounded">
                     <a class="collapse-item" href="<?= base_url('admin/perintah-kerja'); ?>">Perintah Kerja</a>
+                    <a class="collapse-item" href="<?= base_url('admin/perintah-pengiriman'); ?>">Perintah Pengiriman</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/master'); ?>">Tambah Menu</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/varian_menu'); ?>">Varian Menu</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/inputOutlet'); ?>">Input Outlet</a>

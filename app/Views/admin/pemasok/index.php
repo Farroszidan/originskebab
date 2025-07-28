@@ -88,8 +88,7 @@
                         <label for="kategori">Kategori Pemasok</label>
                         <select name="kategori" class="form-control">
                             <option value="daging">Daging</option>
-                            <option value="sayur">Sayur</option>
-                            <option value="bumbu">Bumbu</option>
+                            <option value="sayur">Tepung</option>
                             <option value="lainnya">lainnya</option>
                         </select>
                     </div>
@@ -133,8 +132,7 @@
                             <label>Kategori</label>
                             <select name="kategori" class="form-control">
                                 <option value="daging" <?= $p['kategori'] == 'daging' ? 'selected' : '' ?>>Daging</option>
-                                <option value="sayur" <?= $p['kategori'] == 'sayur' ? 'selected' : '' ?>>Sayur</option>
-                                <option value="bumbu" <?= $p['kategori'] == 'bumbu' ? 'selected' : '' ?>>Bumbu</option>
+                                <option value="tepung  " <?= $p['kategori'] == 'tepung' ? 'selected' : '' ?>>Tepung</option>
                                 <option value="lainnya" <?= $p['kategori'] == 'lainnya' ? 'selected' : '' ?>>Lainnya</option>
                             </select>
                         </div>

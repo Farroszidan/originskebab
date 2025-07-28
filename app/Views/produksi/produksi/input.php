@@ -40,28 +40,40 @@
                     <tbody>
                         <!-- akan diisi dengan JS dari komposisi_bahan_bsj -->
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="4" class="text-right font-weight-bold">Total Biaya Bahan</td>
+                            <td class="font-weight-bold"><span id="total-biaya-bahan">Rp 0</span></td>
+                        </tr>
+                    </tfoot>
                 </table>
-                <div class="mt-3">
-                    <h5>Total Biaya Bahan: <span id="total-biaya-bahan">Rp 0</span></h5>
-                    <h5>Total Biaya Produksi: <span id="total-biaya-produksi">Rp 0</span></h5>
-                </div>
+
             </div>
         </div>
 
         <div class="card mb-4">
-            <div class="card-header font-weight-bold">Tambahkan Biaya Tenaga Kerja & Overhead</div>
+            <div class="card-header font-weight-bold">Biaya Tenaga Kerja & Overhead (Otomatis)</div>
             <div class="card-body">
                 <div class="form-row">
                     <div class="form-group col-md-6">
-                        <label>Biaya Produksi</label>
-                        <input type="text" class="form-control" readonly value="Rp <?= number_format($total_tenaga_kerja, 0, ',', '.'); ?>">
+                        <label>Biaya Tenaga Kerja</label>
+                        <input type="text" id="biaya-tenaga-kerja" class="form-control" readonly value="Rp 0">
                     </div>
                     <div class="form-group col-md-6">
                         <label>Biaya Overhead Pabrik</label>
-                        <input type="text" class="form-control" readonly value="Rp <?= number_format($total_bop, 0, ',', '.'); ?>">
+                        <input type="text" id="biaya-bop" class="form-control" readonly value="Rp 0">
+                        <small id="jenis-bop-info" class="form-text text-muted"></small>
                     </div>
                 </div>
-
+                <tfoot>
+                    <tr>
+                        <td colspan="4" class="text-right font-weight-bold">Total Biaya Tenaga Kerja & BOP</td>
+                        <td class="font-weight-bold"><span id="total-biaya-tenaga-kerja-bop">Rp 0</span></td>
+                    </tr>
+                </tfoot>
+                <div class="mt-3">
+                    <h5>Total Biaya Produksi: <span id="total-biaya-produksi">Rp 0</span></h5>
+                </div>
             </div>
         </div>
 
@@ -76,6 +88,8 @@
 <script>
     const bsjData = <?= json_encode($komposisi); ?>; // hasil join bsj-komposisi-bahan dikirim dari controller
     const bahanData = <?= json_encode($bahan_all); ?>; // semua data bahan untuk ambil harga_satuan
+    const bopData = <?= json_encode($bop_all); ?>; // semua data BOP
+    const tkData = <?= json_encode($tenaga_kerja_all); ?>; // semua data tenaga kerja
 
     document.getElementById('bsj_id').addEventListener('change', updateBahan);
     document.getElementById('jumlah').addEventListener('input', updateBahan);
@@ -89,18 +103,46 @@
         if (!bsjId || isNaN(jumlah)) {
             document.getElementById('total-biaya-bahan').innerText = 'Rp 0';
             document.getElementById('total-biaya-produksi').innerText = 'Rp 0';
+            document.getElementById('biaya-tenaga-kerja').value = 'Rp 0';
+            document.getElementById('biaya-bop').value = 'Rp 0';
+            document.getElementById('jenis-bop-info').innerText = '';
             return;
         }
 
         const komposisi = bsjData.filter(k => k.id_bsj == bsjId);
         let totalBiaya = 0;
 
+        // Deteksi apakah BSJ olahan daging ayam/sapi
+        let bsjNama = '';
+        const bsjSelect = document.getElementById('bsj_id');
+        if (bsjSelect) {
+            const selectedOption = bsjSelect.options[bsjSelect.selectedIndex];
+            if (selectedOption) {
+                bsjNama = selectedOption.textContent.toLowerCase();
+            }
+        }
+        const isOlahanDaging = bsjNama.includes('olahan daging ayam') || bsjNama.includes('olahan daging sapi');
+
         komposisi.forEach(k => {
-            const totalJumlahGram = jumlah * parseFloat(k.jumlah); // total kebutuhan bahan dalam gram
-            const totalJumlahKg = totalJumlahGram / 1000; // konversi ke kilogram
             const bahan = bahanData.find(b => b.id == k.id_bahan);
+            let totalJumlahGram = 0;
+            let totalJumlahKg = 0;
+            if (isOlahanDaging) {
+                // Daging: 45 gram per porsi
+                if (bahan.kategori === 'baku' && (bahan.nama.toLowerCase().includes('daging sapi') || bahan.nama.toLowerCase().includes('daging ayam'))) {
+                    totalJumlahGram = jumlah * 45;
+                } else {
+                    // Bahan lain: komposisi per 1kg × 45/1000 × jumlah produksi
+                    totalJumlahGram = jumlah * (parseFloat(k.jumlah) * 45 / 1000);
+                }
+                totalJumlahKg = totalJumlahGram / 1000;
+            } else {
+                // Default: kebutuhan bahan dalam gram (asumsi per kg)
+                totalJumlahGram = jumlah * parseFloat(k.jumlah);
+                totalJumlahKg = totalJumlahGram / 1000;
+            }
             const harga = parseFloat(bahan.harga_satuan);
-            const subtotal = totalJumlahKg * harga; // menggunakan jumlah dalam kg untuk perhitungan
+            const subtotal = totalJumlahKg * harga;
             totalBiaya += subtotal;
 
             // Tampilkan satuan di bawah jumlah
@@ -120,11 +162,38 @@
         });
         document.getElementById('total-biaya-bahan').innerText = 'Rp ' + totalBiaya.toLocaleString('id-ID');
 
-        // Ambil biaya tenaga kerja & bop dari PHP
-        const biayaTenagaKerja = <?= (int)$total_tenaga_kerja ?>;
-        const biayaBOP = <?= (int)$total_bop ?>;
-        const totalProduksi = totalBiaya + biayaTenagaKerja + biayaBOP;
-        document.getElementById('total-biaya-produksi').innerText = 'Rp ' + totalProduksi.toLocaleString('id-ID');
+        // Otomatis pilih jenis BOP berdasarkan jumlah produksi
+        let jenisBOP = '';
+        if (jumlah < 500) {
+            jenisBOP = 'sedikit';
+        } else if (jumlah >= 500 && jumlah <= 1000) {
+            jenisBOP = 'sedang';
+        } else if (jumlah > 1000) {
+            jenisBOP = 'banyak';
+        }
+
+        // Ambil nilai BOP sesuai jenis, lalu bagi 3
+        let totalBOP = 0;
+        bopData.forEach(bop => {
+            if (bop.jenis_bsj === jenisBOP) {
+                totalBOP += parseInt(bop.biaya);
+            }
+        });
+        totalBOP = totalBOP / 3;
+        document.getElementById('biaya-bop').value = 'Rp ' + Math.round(totalBOP).toLocaleString('id-ID');
+        document.getElementById('jenis-bop-info').innerText = jenisBOP ? `Jenis BOP: ${jenisBOP.charAt(0).toUpperCase() + jenisBOP.slice(1)}` : '';
+
+        // Biaya tenaga kerja: totalTK × jumlah produksi
+        let totalTK = 0;
+        tkData.forEach(tk => {
+            totalTK += parseInt(tk.biaya);
+        });
+        totalTK = totalTK * jumlah;
+        document.getElementById('biaya-tenaga-kerja').value = 'Rp ' + Math.round(totalTK).toLocaleString('id-ID');
+        const totalBiayaTenagaKerjaBOP = totalBOP + totalTK;
+        document.getElementById('total-biaya-tenaga-kerja-bop').innerText = 'Rp ' + Math.round(totalBiayaTenagaKerjaBOP).toLocaleString('id-ID');
+        const totalProduksi = totalBiaya + totalTK + totalBOP;
+        document.getElementById('total-biaya-produksi').innerText = 'Rp ' + Math.round(totalProduksi).toLocaleString('id-ID');
     }
 </script>
 
