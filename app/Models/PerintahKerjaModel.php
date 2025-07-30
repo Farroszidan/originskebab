@@ -6,9 +6,23 @@ use CodeIgniter\Model;
 
 class PerintahKerjaModel extends Model
 {
-    protected $table            = 'perintah_kerja';
-    protected $primaryKey       = 'id';
-    protected $allowedFields    = ['tanggal', 'tipe', 'nama', 'jumlah', 'satuan', 'created_at', 'admin_id'];
+    protected $table = 'perintah_kerja';
+    protected $primaryKey = 'id';
+
+    // ✅ Aktifkan fitur timestamps
+    protected $useTimestamps = false;
+    protected $createdField  = 'created_at';
+
+    // ✅ Pastikan semua field selain created_at di sini
+    protected $allowedFields = [
+        'admin_id',
+        'tanggal',
+        'tipe',
+        'nama',
+        'jumlah',
+        'satuan',
+        'outlet_id'
+    ];
 
     public function getAll()
     {

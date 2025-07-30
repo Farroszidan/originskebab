@@ -6,9 +6,11 @@
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
             <h1 class="h3 text-gray-800 mb-0"><?= esc($tittle); ?></h1>
             <div class="d-flex gap-2">
-                <a href="<?= base_url('produksi/persediaan/create'); ?>" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Tambah Bahan
-                </a>
+                <?php if (in_groups('admin')): ?>
+                    <a href="<?= base_url('produksi/persediaan/create'); ?>" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Tambah Bahan
+                    </a>
+                <?php endif; ?>
                 <a href="<?= base_url('produksi/persediaan/kartu/bahan'); ?>" class="btn btn-info">
                     <i class="fas fa-search"></i> Cek Kartu Persediaan
                 </a>
@@ -61,8 +63,10 @@
                                     <td>Rp <?= number_format($b['harga_satuan'], 0, ',', '.') ?></td>
                                     <td>Rp <?= number_format($b['saldo'], 0, ',', '.'); ?></td>
                                     <td>
-                                        <a href="<?= base_url('produksi/persediaan/edit/' . $b['id']); ?>" class="btn btn-warning btn-sm">Edit</a>
-                                        <a href="<?= base_url('produksi/persediaan/delete/' . $b['id']); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus bahan ini?');">Hapus</a>
+                                        <?php if (in_groups('admin')): ?>
+                                            <a href="<?= base_url('produksi/persediaan/edit/' . $b['id']); ?>" class="btn btn-warning btn-sm">Edit</a>
+                                            <a href="<?= base_url('produksi/persediaan/delete/' . $b['id']); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus bahan ini?');">Hapus</a>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

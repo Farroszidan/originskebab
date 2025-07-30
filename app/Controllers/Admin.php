@@ -351,7 +351,7 @@ class Admin extends BaseController
 
     public function KomposisiTambah()
     {
-        if (!in_groups('admin')) return redirect()->to('login');
+        if (!in_groups('produksi', 'admin')) return redirect()->to('login');
         $bsjModel = new BSJModel();
         $bahanModel = new BahanModel();
 
@@ -1301,17 +1301,33 @@ class Admin extends BaseController
 
         // Ambil data bahan beserta stok terbaru
         $bahan_all = $this->bahanModel->findAll();
-        // Pastikan field 'stok' ada dan benar (jika perlu join ke tabel stok, lakukan di sini)
-        // Jika stok disimpan di tabel lain, lakukan join manual di sini
+        $rangkumanModel = new \App\Models\RangkumanKekuranganGabunganModel();
+        // Ambil daftar batch_id dan tanggal
+        $batchList = $rangkumanModel->select('batch_id, tanggal')->groupBy('batch_id, tanggal')->orderBy('batch_id', 'DESC')->findAll();
 
         $data = [
             'tittle' => 'Input Perintah Kerja',
             'bahan_all' => $bahan_all,
             'bsj' => $this->bsjModel->findAll(),
             'komposisi_bsj' => $this->komposisiModel->findAll(), // ID_BSJ, ID_Bahan, Jumlah
+            'batchList' => $batchList,
         ];
 
         return view('admin/perintah_kerja/input', $data);
+    }
+    // Endpoint AJAX: Ambil rangkuman kekurangan gabungan berdasarkan batch_id
+    public function getRangkumanBatchJson()
+    {
+        if (!in_groups('admin')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Akses ditolak']);
+        }
+        $batch_id = $this->request->getGet('batch_id');
+        if (!$batch_id) {
+            return $this->response->setJSON(['success' => false, 'message' => 'batch_id tidak ditemukan']);
+        }
+        $rangkumanModel = new \App\Models\RangkumanKekuranganGabunganModel();
+        $data = $rangkumanModel->where('batch_id', $batch_id)->findAll();
+        return $this->response->setJSON(['success' => true, 'data' => $data]);
     }
 
     // 3. SIMPAN
@@ -1534,6 +1550,437 @@ class Admin extends BaseController
         return $this->response->setJSON(['success' => true, 'data' => $result]);
     }
 
+    // ==================== KEBUTUHAN OUTLET ====================
+
+    public function kekuranganBahanPerOutlet($return = false)
+    {
+        $db = \Config\Database::connect();
+
+        $kode_bahan_ditampilkan = [
+            'BSJ01',
+            'BSJ02',
+            'BSJ03',
+            'BP001',
+            'BP007',
+            'BP008',
+            'BP009',
+            'BP010',
+            'BP011',
+            'BP012',
+            'BP013',
+            'BP014',
+            'BP015',
+            'BP016',
+            'BP017',
+            'BP018',
+            'BP019',
+            'BP020',
+            'BP021',
+            'BP022',
+            'BP023'
+        ];
+
+        $komposisi_paten = [
+            'BSJ01' => 1,
+            'BSJ02' => 0.045,
+            'BSJ03' => 0.045,
+            'BP001' => 1 / 16,
+            'BP012' => 1,
+            'BP013' => 0.025,
+            'BP014' => 0.022,
+            'BP015' => 0.025,
+            'BP016' => 0.025,
+            'BP017' => 0.025,
+            'BP018' => 0,
+            'BP019' => 1,
+            'BP020' => 0.22,
+            'BP021' => 1,
+            'BP022' => 0.5,
+            'BP023' => 1
+        ];
+
+        $porsi = 200;
+
+        $stok_dalam_gram = [
+            'BP001',
+            'BP002',
+            'BP003',
+            'BP004',
+            'BP005',
+            'BP006',
+            'BP007',
+            'BP008',
+            'BP009',
+            'BP010',
+            'BP011',
+            'BP013',
+            'BP014',
+            'BP015',
+            'BP016',
+            'BP017',
+            'BP018'
+        ];
+
+        // Ambil data bahan dari database
+        $bahanList = $db->table('bahan')->get()->getResultArray();
+        $bahanMap = [];
+        foreach ($bahanList as $b) {
+            $bahanMap[$b['kode']] = [
+                'nama' => $b['nama'],
+                'satuan' => $b['satuan']
+            ];
+        }
+
+        // Override nama & satuan untuk BSJ
+        $bahanMap['BSJ01'] = ['nama' => 'Kulit Kebab', 'satuan' => 'pcs'];
+        $bahanMap['BSJ02'] = ['nama' => 'Olahan Daging Ayam', 'satuan' => 'porsi'];
+        $bahanMap['BSJ03'] = ['nama' => 'Olahan Daging Sapi', 'satuan' => 'porsi'];
+
+        // Hitung kebutuhan bahan dasar non-BSJ (per outlet 200 porsi)
+        $kebutuhanMap = [];
+        foreach ($komposisi_paten as $kode => $per_porsi) {
+            $kebutuhanMap[$kode] = round($per_porsi * $porsi, 3);
+        }
+        $kebutuhanMap['BSJ02'] = $porsi;
+        $kebutuhanMap['BSJ03'] = $porsi;
+
+        // Hitung bahan turunan saus tomat (jika ada)
+        $jumlah_saus_tomat_kg = $kebutuhanMap['BP015'] ?? 0;
+        $kebutuhanMap['BP007'] = round($jumlah_saus_tomat_kg * 12 / 1000, 3);
+        $kebutuhanMap['BP008'] = round($jumlah_saus_tomat_kg * 9 / 1000, 3);
+        $kebutuhanMap['BP009'] = round($jumlah_saus_tomat_kg * 3 / 1000, 3);
+        $kebutuhanMap['BP010'] = round($jumlah_saus_tomat_kg * 6 / 1000, 3);
+        $kebutuhanMap['BP011'] = round($jumlah_saus_tomat_kg * 20 / 1000, 3);
+
+        $outlets = $db->table('outlet')->get()->getResultArray();
+
+        $data['tittle'] = 'Kekurangan Bahan Per Outlet';
+        $data['kekurangan_per_outlet'] = [];
+
+        // Hitung kebutuhan & kekurangan per outlet
+        foreach ($outlets as $outlet) {
+            $id_outlet = $outlet['id'];
+            $nama_outlet = $outlet['nama_outlet'] ?? $outlet['nama'];
+
+            $detail = [];
+
+            foreach ($kode_bahan_ditampilkan as $kode_bahan) {
+                $kebutuhan = $kebutuhanMap[$kode_bahan] ?? 0;
+
+                $stokRow = $db->table('persediaan_outlet')
+                    ->where('outlet_id', $id_outlet)
+                    ->where('kode_bahan', $kode_bahan)
+                    ->orderBy('tanggal', 'desc')
+                    ->get()->getRowArray();
+
+                $stok = $stokRow['stok'] ?? 0;
+                if (in_array($kode_bahan, $stok_dalam_gram)) {
+                    $stok = round($stok / 1000, 3); // gram ke kg
+                }
+
+                $kurang = max(0, $kebutuhan - $stok);
+
+                $detail[] = [
+                    'kode_bahan' => $kode_bahan,
+                    'nama_bahan' => $bahanMap[$kode_bahan]['nama'] ?? '-',
+                    'satuan'     => $bahanMap[$kode_bahan]['satuan'] ?? '-',
+                    'kebutuhan'  => $kebutuhan,
+                    'stok'       => $stok,
+                    'kurang'     => $kurang
+                ];
+            }
+
+            $data['kekurangan_per_outlet'][] = [
+                'outlet' => $nama_outlet,
+                'data'   => $detail
+            ];
+        }
+
+        // ================= Komposisi Manual BSJ per porsi ====================
+        // gram per porsi x jumlah porsi (200)
+        $komposisi_bsj_manual = [
+            // Kulit (BSJ01)
+            'Tepung terigu' => ['kode' => 'BB003', 'jumlah' => 45, 'satuan' => 'gram'],
+            'Ragi' => ['kode' => 'BP002', 'jumlah' => 1, 'satuan' => 'gram'],
+            'Shortening' => ['kode' => 'BP003', 'jumlah' => 3, 'satuan' => 'gram'],
+            'Gula' => ['kode' => 'BP004', 'jumlah' => 2, 'satuan' => 'gram'],
+            'Garam' => ['kode' => 'BP005', 'jumlah' => 1, 'satuan' => 'gram'],
+
+            // Daging Ayam (BSJ02)
+            'Daging Ayam' => ['kode' => 'BB001', 'jumlah' => 45, 'satuan' => 'gram'],
+            'Yogurt' => ['kode' => 'BP006', 'jumlah' => 7, 'satuan' => 'gram'],
+            'Paprika Bubuk' => ['kode' => 'BP007', 'jumlah' => 1, 'satuan' => 'gram'],
+            'Lada putih bubuk' => ['kode' => 'BP008', 'jumlah' => 2, 'satuan' => 'gram'],
+            'Parsley' => ['kode' => 'BP009', 'jumlah' => 0.5, 'satuan' => 'gram'],
+            'Oregano' => ['kode' => 'BP010', 'jumlah' => 0.2, 'satuan' => 'gram'],
+            'Bawang putih bubuk' => ['kode' => 'BP011', 'jumlah' => 1, 'satuan' => 'gram'],
+            'Selada' => ['kode' => 'BP013', 'jumlah' => 0.3, 'satuan' => 'gram'],
+
+            // Daging Sapi (BSJ03)
+            'Daging Sapi' => ['kode' => 'BB002', 'jumlah' => 45, 'satuan' => 'gram'],
+            'Susu' => ['kode' => 'BB004', 'jumlah' => 7, 'satuan' => 'gram'],
+            'Lada hitam bubuk' => ['kode' => 'BP024', 'jumlah' => 2, 'satuan' => 'gram'],
+            'Saos curry' => ['kode' => 'BP017', 'jumlah' => 1, 'satuan' => 'gram'],
+            'Parsley' => ['kode' => 'BP009', 'jumlah' => 0.5, 'satuan' => 'gram'],
+            'Oregano' => ['kode' => 'BP010', 'jumlah' => 0.3, 'satuan' => 'gram'],
+            'Garam' => ['kode' => 'BP005', 'jumlah' => 0.3, 'satuan' => 'gram'],
+        ];
+
+        $bandingkan_bahan = [];
+
+        // Ambil total kekurangan BSJ dari semua outlet (per kode BSJ)
+        $total_kekurangan_bsj = [
+            'BSJ01' => 0,
+            'BSJ02' => 0,
+            'BSJ03' => 0,
+        ];
+        foreach ($data['kekurangan_per_outlet'] as $outlet_data) {
+            foreach ($outlet_data['data'] as $item) {
+                if (isset($total_kekurangan_bsj[$item['kode_bahan']])) {
+                    $total_kekurangan_bsj[$item['kode_bahan']] += $item['kurang'];
+                }
+            }
+        }
+
+        // Kalkulasi total kebutuhan BSJ manual berdasarkan total kekurangan BSJ
+        foreach ($komposisi_bsj_manual as $nama => $item) {
+            $kode = $item['kode'];
+            $gram_per_porsi = $item['jumlah'];
+            $total_gram = 0;
+
+            // Tentukan total porsi dari BSJ yang sesuai
+            // Jika kode bahan masuk di BSJ01, BSJ02, BSJ03
+            // cari total kekurangan yang sesuai untuk porsi
+            if (in_array($kode, ['BB003', 'BP002', 'BP003', 'BP004', 'BP005'])) {
+                // Kulit (BSJ01)
+                $total_gram = $gram_per_porsi * $total_kekurangan_bsj['BSJ01'];
+            } elseif (in_array($kode, ['BB001', 'BP006', 'BP007', 'BP008', 'BP009', 'BP010', 'BP011', 'BP013'])) {
+                // Daging Ayam (BSJ02)
+                $total_gram = $gram_per_porsi * $total_kekurangan_bsj['BSJ02'];
+            } elseif (in_array($kode, ['BB002', 'BB004', 'BP024', 'BP017', 'BP009', 'BP010', 'BP005'])) {
+                // Daging Sapi (BSJ03)
+                $total_gram = $gram_per_porsi * $total_kekurangan_bsj['BSJ03'];
+            } else {
+                // Kalau tidak termasuk BSJ, ambil porsi default 200 saja
+                $total_gram = $gram_per_porsi * $porsi;
+            }
+
+            $total_kg = $total_gram / 1000;
+
+            if (isset($bandingkan_bahan[$kode])) {
+                $bandingkan_bahan[$kode]['jumlah'] += $total_kg;
+            } else {
+                $bandingkan_bahan[$kode] = [
+                    'kode' => $kode,
+                    'nama' => $nama,
+                    'satuan' => 'kg',
+                    'jumlah' => $total_kg
+                ];
+            }
+        }
+
+        // Gabungkan kekurangan dari per outlet (non BSJ)
+        $rangkuman = [];
+        foreach ($data['kekurangan_per_outlet'] as $outlet_data) {
+            foreach ($outlet_data['data'] as $item) {
+                $kode = $item['kode_bahan'];
+                if (in_array($kode, ['BSJ01', 'BSJ02', 'BSJ03'])) continue;
+
+                if (!isset($rangkuman[$kode])) {
+                    $rangkuman[$kode] = [
+                        'nama' => $item['nama_bahan'],
+                        'satuan' => $item['satuan'],
+                        'kurang' => 0
+                    ];
+                }
+                $rangkuman[$kode]['kurang'] += $item['kurang'];
+            }
+        }
+
+        // Tambahkan bahan pembentuk BSJ dari bandingkan_bahan ke rangkuman (assign langsung, bukan tambah)
+        foreach ($bandingkan_bahan as $kode => $row) {
+            if (!isset($rangkuman[$kode])) {
+                $rangkuman[$kode] = [
+                    'nama' => $row['nama'],
+                    'satuan' => $row['satuan'],
+                    'kurang' => 0
+                ];
+            }
+            $rangkuman[$kode]['kurang'] = $row['jumlah'];
+        }
+
+        // Urutkan hasil rangkuman
+        ksort($rangkuman);
+        usort($bandingkan_bahan, fn($a, $b) => strcmp($a['kode'], $b['kode']));
+
+        $data['rangkuman_kekurangan'] = $rangkuman;
+        $data['bandingkan_bahan'] = array_values($bandingkan_bahan);
+        $data['bahan_all'] = $db->table('bahan')->select('nama, satuan, stok')->get()->getResultArray();
+
+        return $return ? $data : view('admin/perintah_kerja/kekurangan_per_outlet', $data);
+    }
+
+    public function simpanRangkumanKekurangan()
+    {
+        $request = $this->request;
+        // Accept both AJAX and standard form POST
+        $gabungan = $request->getPost('gabungan');
+        $perOutlet = $request->getPost('perOutlet');
+        $tanggal = $request->getPost('tanggal');
+
+        // Parse JSON if sent as string
+        if (is_string($gabungan)) {
+            $gabungan = json_decode($gabungan, true);
+        }
+        if (is_string($perOutlet)) {
+            $perOutlet = json_decode($perOutlet, true);
+        }
+
+        if (!is_array($gabungan) || !is_array($perOutlet) || !$tanggal) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Data tidak lengkap']);
+        }
+
+        $gabunganModel = new \App\Models\RangkumanKekuranganGabunganModel();
+        $perOutletModel = new \App\Models\RangkumanKekuranganPerOutletModel();
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // Generate batch_id: max(batch_id) + 1
+        $maxBatchGabungan = $db->table('rangkuman_kekurangan_gabungan')->selectMax('batch_id')->get()->getRowArray();
+        $maxBatchPerOutlet = $db->table('rangkuman_kekurangan_per_outlet')->selectMax('batch_id')->get()->getRowArray();
+        $lastBatch = max((int)($maxBatchGabungan['batch_id'] ?? 0), (int)($maxBatchPerOutlet['batch_id'] ?? 0));
+        $batch_id = $lastBatch + 1;
+
+        // Simpan gabungan
+        foreach ($gabungan as $row) {
+            $dataGabungan = [
+                'kode_bahan' => $row['kode_bahan'] ?? '',
+                'tipe' => $row['tipe'] ?? '',
+                'nama_barang' => $row['nama_barang'] ?? '',
+                'satuan' => $row['satuan'] ?? '',
+                'kekurangan' => $row['kekurangan'] ?? 0,
+                'pembulatan' => $row['pembulatan'] ?? 0,
+                'tanggal' => $tanggal,
+                'batch_id' => $batch_id
+            ];
+            $gabunganModel->insert($dataGabungan);
+        }
+
+        // Simpan per outlet
+        foreach ($perOutlet as $row) {
+            $dataOutlet = [
+                'outlet' => $row['outlet'] ?? '',
+                'kode_bahan' => $row['kode_bahan'] ?? '',
+                'tipe' => $row['tipe'] ?? '',
+                'nama_barang' => $row['nama_barang'] ?? '',
+                'satuan' => $row['satuan'] ?? '',
+                'kekurangan' => $row['kekurangan'] ?? 0,
+                'pembulatan' => $row['pembulatan'] ?? 0,
+                'tanggal' => $tanggal,
+                'batch_id' => $batch_id
+            ];
+            $perOutletModel->insert($dataOutlet);
+        }
+
+        $db->transComplete();
+        if ($db->transStatus() === false) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Gagal menyimpan rangkuman kekurangan']);
+        }
+        // If AJAX, return JSON. If not, redirect.
+        if ($request->isAJAX()) {
+            return $this->response->setJSON(['success' => true, 'message' => 'Rangkuman kekurangan berhasil disimpan']);
+        } else {
+            return redirect()->to('admin/perintah-kerja')->with('success', 'Rangkuman kekurangan berhasil disimpan');
+        }
+    }
+
+    public function hitungKebutuhanBahan()
+    {
+        $tanggal = $this->request->getPost('tanggal');
+        $targetPorsi = 200; // misalnya 200 porsi per outlet
+        $outletIds = $this->request->getPost('outlet_id');
+
+        if (!$outletIds || !is_array($outletIds)) {
+            return redirect()->back()->with('error', 'Pilih outlet terlebih dahulu.');
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // Ambil semua menu
+        $menus = $db->table('menu')->get()->getResult();
+
+        foreach ($outletIds as $outletId) {
+            // Cek apakah sudah ada perintah kerja
+            $perintah = $db->table('perintah_kerja')
+                ->where(['outlet_id' => $outletId, 'tanggal' => $tanggal])
+                ->get()->getRow();
+
+            if (!$perintah) {
+                $db->table('perintah_kerja')->insert([
+                    'outlet_id' => $outletId,
+                    'tanggal' => $tanggal,
+                    'status' => 'draft',
+                    'created_at' => date('Y-m-d H:i:s')
+                ]);
+                $perintahId = $db->insertID();
+            } else {
+                $perintahId = $perintah->id;
+                $db->table('detail_perintah_kerja')->where('perintah_kerja_id', $perintahId)->delete();
+            }
+
+            // Hitung kebutuhan bahan total dari semua menu
+            $totalKebutuhan = [];
+
+            foreach ($menus as $menu) {
+                $komposisi = json_decode($menu->komposisi, true);
+                if (!$komposisi) continue;
+
+                foreach ($komposisi as $bahanNama => $detail) {
+                    $jumlah = floatval($detail['jumlah']) * $targetPorsi;
+
+                    if (!isset($totalKebutuhan[$bahanNama])) {
+                        $totalKebutuhan[$bahanNama] = 0;
+                    }
+                    $totalKebutuhan[$bahanNama] += $jumlah;
+                }
+            }
+
+            // Simpan ke detail_perintah_kerja
+            foreach ($totalKebutuhan as $bahanNama => $kebutuhanTotal) {
+                // Cari ID bahan berdasarkan nama
+                $bahan = $db->table('bahan')->where('nama', $bahanNama)->get()->getRow();
+                if (!$bahan) continue;
+
+                // Ambil stok outlet
+                $stokOutlet = $db->table('persediaan_outlet')
+                    ->where(['outlet_id' => $outletId, 'bahan_id' => $bahan->id])
+                    ->get()->getRow();
+                $stokAkhir = $stokOutlet ? $stokOutlet->stok_akhir : 0;
+
+                $jumlahDikirim = max($kebutuhanTotal - $stokAkhir, 0);
+
+                $db->table('detail_perintah_kerja')->insert([
+                    'perintah_kerja_id' => $perintahId,
+                    'bahan_id' => $bahan->id,
+                    'kebutuhan_total' => $kebutuhanTotal,
+                    'stok_outlet' => $stokAkhir,
+                    'jumlah_dikirim' => $jumlahDikirim,
+                    'created_at' => date('Y-m-d H:i:s')
+                ]);
+            }
+        }
+
+        $db->transComplete();
+
+        if ($db->transStatus() === false) {
+            return redirect()->back()->with('error', 'Gagal menghitung kebutuhan bahan.');
+        }
+
+        return redirect()->to('admin/perintah-kerja/')->with('success', 'Kebutuhan bahan berhasil dihitung dari komposisi menu.');
+    }
+
     // ==================== PERINTAH PENGIRIMAN ====================
     // INDEX
     public function perintahPengirimanIndex()
@@ -1642,14 +2089,33 @@ class Admin extends BaseController
                 'tanggal' => $row['tanggal'],
             ];
         }
+        $rangkumanModel = new \App\Models\RangkumanKekuranganPerOutletModel();
+        $rangkumanKekurangan = $rangkumanModel->findAll();
         $data = [
             'tittle' => 'Input Perintah Pengiriman',
             'outlets' => $outletModel->findAll(),
             'bsj' => $bsjModel->findAll(),
             'bahan' => $bahanModel->findAll(),
             'perintahKerjaData' => $perintahKerjaData,
+            'rangkumanKekuranganPerOutlet' => $rangkumanKekurangan
         ];
         return view('admin/perintah_pengiriman/input', $data);
+    }
+
+    // Endpoint AJAX: Ambil rangkuman kekurangan per outlet berdasarkan batch_id dan outlet_id
+    public function getKekuranganPerOutletJson()
+    {
+        $batch_id = $this->request->getGet('batch_id');
+        $outlet_id = $this->request->getGet('outlet_id');
+        $model = new \App\Models\RangkumanKekuranganPerOutletModel();
+        $where = [];
+        if ($batch_id) $where['batch_id'] = $batch_id;
+        if ($outlet_id) $where['outlet'] = $outlet_id;
+        $result = $model->where($where)->findAll();
+        return $this->response->setJSON([
+            'success' => true,
+            'data' => $result
+        ]);
     }
 
     // SIMPAN
@@ -1865,5 +2331,52 @@ class Admin extends BaseController
             }
         }
         return $this->response->setJSON(['success' => true, 'data' => $detail]);
+    }
+
+    public function simpanDraftPerintahKerja()
+    {
+        $outletId = $this->request->getPost('outlet_id');
+        $tanggal = $this->request->getPost('tanggal');
+        $shift = $this->request->getPost('shift');
+
+        // Hitung kebutuhan bahan
+        $dataBahan = $this->hitungKebutuhanBahan($outletId);
+
+        // Simpan ke perintah_kerja
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $db->table('perintah_kerja')->insert([
+            'outlet_id' => $outletId,
+            'tanggal' => $tanggal,
+            'shift' => $shift,
+            'status' => 'draft'
+        ]);
+        $perintahKerjaId = $db->insertID();
+
+        // Simpan detail bahan
+        foreach ($dataBahan as $bahan) {
+            $db->table('detail_perintah_kerja')->insert([
+                'perintah_kerja_id' => $perintahKerjaId,
+                'bahan_id' => $bahan['bahan_id'],
+                'kebutuhan_total' => $bahan['kebutuhan_total'],
+                'stok_outlet' => $bahan['stok_outlet'],
+                'jumlah_dikirim' => $bahan['jumlah_dikirim']
+            ]);
+        }
+
+        $db->transComplete();
+
+        return redirect()->to('/admin/perintah-kerja')->with('success', 'Draft berhasil disimpan.');
+    }
+
+    public function daftarPerintahKerja()
+    {
+        $db = \Config\Database::connect();
+        $data['perintah'] = $db->table('perintah_kerja')
+            ->where('status', 'draft')
+            ->get()->getResult();
+
+        return view('admin/daftar_perintah_kerja', $data);
     }
 }

@@ -232,30 +232,47 @@
                     const itemList = parent.querySelector('.item-list');
                     itemList.innerHTML = '';
                     let idx = 0;
-                    data.forEach(item => {
-                        const row = document.createElement('div');
-                        row.classList.add('row', 'mb-2', 'align-items-end');
-                        row.innerHTML = `
-                            <div class="col-md-3">
-                                <label>Nama ${item.jenis === 'bsj' ? 'BSJ' : 'Bahan'}</label>
-                                <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][jenis]" value="${item.jenis.toUpperCase()}">
-                                <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][id_barang]" value="${item.id}">
-                                <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][nama_barang]" value="${item.nama}">
-                                <input type="text" class="form-control" value="${item.nama}" readonly>
-                            </div>
-                            <div class="col-md-2">
-                                <label>Jumlah</label>
-                                <input type="number" name="outlet[${parent.dataset.index}][items][${idx}][jumlah]" class="form-control" required min="1">
-                            </div>
-                            <div class="col-md-2">
-                                <label>Satuan</label>
-                                <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][satuan]" value="${item.satuan}">
-                                <input type="text" class="form-control" value="${item.satuan}" readonly>
-                            </div>
-                        `;
-                        itemList.appendChild(row);
-                        idx++;
-                    });
+                    const outletSelect = parent.querySelector('.outlet-select');
+                    const outletId = outletSelect ? outletSelect.value : null;
+                    // Fetch pembulatan kekurangan untuk outlet ini
+                    fetch(`<?= base_url('admin/perintah-kerja/getKekuranganPerOutletJson') ?>?batch_id=${adminId}&outlet_id=${outletId}`)
+                        .then(res => res.json())
+                        .then(rangkumanRes => {
+                            let kekuranganOutlet = [];
+                            if (rangkumanRes.success && Array.isArray(rangkumanRes.data)) {
+                                kekuranganOutlet = rangkumanRes.data;
+                            }
+                            data.forEach(item => {
+                                // Cari pembulatan dari rangkuman kekurangan per outlet
+                                let jumlahPembulatan = '';
+                                if (kekuranganOutlet.length > 0) {
+                                    const match = kekuranganOutlet.find(r => r.kode_bahan === item.kode_bahan);
+                                    if (match) jumlahPembulatan = match.pembulatan;
+                                }
+                                const row = document.createElement('div');
+                                row.classList.add('row', 'mb-2', 'align-items-end');
+                                row.innerHTML = `
+                                    <div class="col-md-3">
+                                        <label>Nama ${item.jenis === 'bsj' ? 'BSJ' : 'Bahan'}</label>
+                                        <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][jenis]" value="${item.jenis.toUpperCase()}">
+                                        <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][id_barang]" value="${item.id}">
+                                        <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][nama_barang]" value="${item.nama}">
+                                        <input type="text" class="form-control" value="${item.nama}" readonly>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Jumlah</label>
+                                        <input type="number" name="outlet[${parent.dataset.index}][items][${idx}][jumlah]" class="form-control" required min="0.01" step="0.01" value="${jumlahPembulatan}">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Satuan</label>
+                                        <input type="hidden" name="outlet[${parent.dataset.index}][items][${idx}][satuan]" value="${item.satuan}">
+                                        <input type="text" class="form-control" value="${item.satuan}" readonly>
+                                    </div>
+                                `;
+                                itemList.appendChild(row);
+                                idx++;
+                            });
+                        });
                 });
             })
             .catch(error => {

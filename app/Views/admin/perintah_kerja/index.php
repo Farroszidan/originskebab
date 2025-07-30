@@ -85,6 +85,11 @@
             </table>
         </div>
     </div>
+    <div class="d-flex gap-2">
+        <a href="<?= base_url('admin/perintah-kerja/kekurangan-per-outlet') ?>" class="btn btn-warning mb-3">
+            <i class="fas fa-exclamation-triangle"></i> Lihat Kekurangan Bahan per Outlet
+        </a>
+    </div>
 </div>
 
 <?= $this->endSection(); ?>

@@ -9,6 +9,10 @@
         <div class="card mb-4">
             <div class="card-body">
                 <div class="form-group">
+                    <label for="tanggal">Tanggal Produksi</label>
+                    <input type="date" name="tanggal" id="tanggal" class="form-control" required value="<?= date('Y-m-d'); ?>">
+                </div>
+                <div class="form-group">
                     <label for="bsj_id">Pilih BSJ</label>
                     <select name="bsj_id" id="bsj_id" class="form-control" required>
                         <option value="">-- Pilih BSJ --</option>

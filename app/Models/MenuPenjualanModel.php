@@ -20,4 +20,13 @@ class MenuPenjualanModel extends Model
     ];
 
     protected $returnType = 'array';
+
+    public function getAllWithDecodedKomposisi()
+    {
+        $menus = $this->findAll();
+        foreach ($menus as &$menu) {
+            $menu['komposisi'] = json_decode($menu['komposisi'], true);
+        }
+        return $menus;
+    }
 }

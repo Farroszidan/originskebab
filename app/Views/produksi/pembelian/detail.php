@@ -8,12 +8,6 @@
         <div class="card-header">Informasi Pembelian</div>
         <div class="card-body">
             <p><b>Tanggal:</b> <?= $pembelian['tanggal']; ?></p>
-            <?php if (isset($pembelian['nama_pemasok'])) : ?>
-                <p><b>Pemasok:</b> <?= $pembelian['nama_pemasok']; ?></p>
-            <?php endif; ?>
-            <?php if (isset($pembelian['tipe_pembayaran'])) : ?>
-                <p><b>Tipe Pembayaran:</b> <?= ucfirst($pembelian['tipe_pembayaran']); ?></p>
-            <?php endif; ?>
             <p><b>Total:</b> Rp <?= number_format($pembelian['total_harga'], 0, ',', '.'); ?></p>
             <?php if (isset($pembelian['bukti_transaksi']) && $pembelian['bukti_transaksi']) : ?>
                 <p><b>Bukti Transaksi:</b> <a href="<?= base_url('uploads/bukti_transaksi/' . $pembelian['bukti_transaksi']); ?>" target="_blank">Lihat</a></p>

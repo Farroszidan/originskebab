@@ -8,6 +8,6 @@ class KartuPersediaanBSJModel extends Model
 {
     protected $table = 'kartu_persediaan_bsj';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['bsj_id', 'tanggal', 'jenis', 'jumlah', 'keterangan', 'created_at'];
+    protected $allowedFields = ['bsj_id', 'tanggal', 'jenis', 'jumlah', 'harga_satuan', 'keterangan', 'created_at'];
     protected $useTimestamps = true;
 }

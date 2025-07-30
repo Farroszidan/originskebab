@@ -55,12 +55,14 @@
                                     <a href="<?= base_url('produksi/pengiriman/detail/' . $p['id']); ?>" class="btn btn-info btn-sm">
                                         <i class="fas fa-eye"></i> Detail
                                     </a>
-                                    <form action="<?= base_url('produksi/pengiriman/hapus/' . $p['id']); ?>" method="post" style="display:inline;" onsubmit="return confirm('Yakin ingin menghapus data pengiriman ini? Semua detail barang juga akan terhapus!');">
-                                        <?= csrf_field(); ?>
-                                        <button type="submit" class="btn btn-danger btn-sm">
-                                            <i class="fas fa-trash"></i> Hapus
-                                        </button>
-                                    </form>
+                                    <?php if (in_groups('admin')): ?>
+                                        <form action="<?= base_url('produksi/pengiriman/hapus/' . $p['id']); ?>" method="post" style="display:inline;" onsubmit="return confirm('Yakin ingin menghapus data pengiriman ini? Semua detail barang juga akan terhapus!');">
+                                            <?= csrf_field(); ?>
+                                            <button type="submit" class="btn btn-danger btn-sm">
+                                                <i class="fas fa-trash"></i> Hapus
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

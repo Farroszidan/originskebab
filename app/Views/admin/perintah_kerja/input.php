@@ -3,6 +3,15 @@
 
 <div class="container-fluid">
     <h1 class="h3 mb-4 text-gray-800"><?php echo esc($tittle); ?></h1>
+    <div class="form-group mb-3">
+        <label for="batch_id">Kebutuhan Outlet (Batch)</label>
+        <select id="batch_id" class="form-control">
+            <option value="">-- Pilih Batch --</option>
+            <?php foreach (($batchList ?? []) as $batch): ?>
+                <option value="<?= $batch['batch_id'] ?>">Batch <?= $batch['batch_id'] ?> (<?= date('d-m-Y', strtotime($batch['tanggal'])) ?>)</option>
+            <?php endforeach; ?>
+        </select>
+    </div>
     <form id="form-perintah-kerja" action="<?php echo base_url('admin/perintah-kerja/simpan'); ?>" method="post">
         <!-- Input Produksi -->
         <div class="card mb-4">
@@ -69,6 +78,79 @@
     </form>
 </div>
 <script>
+    // Event: Pilih batch kebutuhan outlet
+    document.getElementById('batch_id').addEventListener('change', function() {
+        const batchId = this.value;
+        if (!batchId) return;
+        fetch('<?= base_url('admin/perintah-kerja/getRangkumanBatchJson') ?>?batch_id=' + batchId)
+            .then(res => res.json())
+            .then(res => {
+                if (res.success && Array.isArray(res.data)) {
+                    daftarProduksi = [];
+                    let kebutuhanGabungan = [];
+                    res.data.forEach(item => {
+                        // Gunakan pembulatan sebagai jumlah utama
+                        const jumlahFinal = parseFloat(item.pembulatan ?? 0);
+                        kebutuhanGabungan.push({
+                            nama: item.nama_barang,
+                            kategori: item.tipe,
+                            jumlah: jumlahFinal,
+                            satuan: item.satuan,
+                            pembulatan: jumlahFinal
+                        });
+                        let kebutuhan = [];
+                        if (item.tipe === 'bsj') {
+                            // Cari komposisi bahan dari komposisiData
+                            const bsjObj = bsjList.find(bsj => bsj.nama === item.nama_barang);
+                            if (bsjObj) {
+                                komposisiData.forEach(k => {
+                                    if (k.id_bsj == bsjObj.id) {
+                                        const bahan = bahanData.find(b => b.id == k.id_bahan);
+                                        let satuanBahan = bahan?.satuan || 'kg';
+                                        let totalJumlah = 0;
+                                        // Logika sama seperti previewKebutuhan
+                                        const isKulitKebab = (item.nama_barang.toLowerCase().includes('kulit kebab'));
+                                        const porsiPerKg = 1000 / 45;
+                                        if (isKulitKebab) {
+                                            totalJumlah = (parseFloat(k.jumlah) / (satuanBahan === 'kg' || satuanBahan === 'liter' ? 1000 : 1)) * jumlahFinal;
+                                        } else if (bahan.kategori === 'baku' && (bahan.nama.toLowerCase().includes('daging sapi') || bahan.nama.toLowerCase().includes('daging ayam'))) {
+                                            totalJumlah = jumlahFinal * 0.045;
+                                        } else {
+                                            let komposisiPerKg = parseFloat(k.jumlah) / 1000;
+                                            totalJumlah = (komposisiPerKg / porsiPerKg) * jumlahFinal;
+                                        }
+                                        kebutuhan.push({
+                                            nama: bahan.nama,
+                                            kategori: bahan.kategori,
+                                            jumlah: totalJumlah,
+                                            satuan: satuanBahan
+                                        });
+                                    }
+                                });
+                            }
+                        } else {
+                            // Bahan baku, tampilkan satu bahan saja
+                            kebutuhan.push({
+                                nama: item.nama_barang,
+                                kategori: item.tipe,
+                                jumlah: jumlahFinal,
+                                satuan: item.satuan
+                            });
+                        }
+                        daftarProduksi.push({
+                            tipe: item.tipe,
+                            nama: item.nama_barang,
+                            jumlah: jumlahFinal,
+                            satuan: item.satuan,
+                            kebutuhan: kebutuhan
+                        });
+                    });
+                    renderDaftarProduksi();
+                    document.getElementById('input-produksi').value = JSON.stringify(daftarProduksi);
+                    document.getElementById('input-rangkuman').value = JSON.stringify(kebutuhanGabungan);
+                }
+            });
+    });
     // Data dari PHP
     const bahanBakuList = <?= json_encode($bahan_all); ?>;
     const bsjList = <?= json_encode($bsj); ?>;
@@ -94,8 +176,7 @@
             html += '<select id="produk-id" class="form-control">';
             html += '<option value="">-- Pilih BSJ --</option>';
             bsjList.forEach(item => {
-                let satuanTampil = item.satuan && item.satuan.toLowerCase() === 'kg' ? 'porsi' : item.satuan;
-                html += `<option value="${item.id}" data-satuan="${item.satuan}">${item.nama} (${satuanTampil})</option>`;
+                html += `<option value="${item.id}" data-satuan="${item.satuan}">${item.nama}</option>`;
             });
             html += '</select>';
         } else if (tipe === 'bahan') {
@@ -103,7 +184,7 @@
             html += '<select id="produk-id" class="form-control">';
             html += '<option value="">-- Pilih Bahan Baku --</option>';
             bahanBakuList.forEach(item => {
-                html += `<option value="${item.id}" data-satuan="${item.satuan}">${item.nama} (${item.satuan})</option>`;
+                html += `<option value="${item.id}" data-satuan="${item.satuan}">${item.nama}</option>`;
             });
             html += '</select>';
         }

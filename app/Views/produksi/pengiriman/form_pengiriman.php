@@ -33,7 +33,6 @@
             <!-- Blok outlet & item akan diisi otomatis oleh JS -->
         </div>
         <button type="button" class="btn btn-success mb-3" id="addOutletBtn">+ Tambah Outlet Tujuan</button>
-
         <div class="mt-4">
             <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Kirim</button>
             <a href="<?= base_url('produksi/pengiriman') ?>" class="btn btn-secondary ml-2"><i class="fas fa-times"></i> Batal</a>
@@ -98,7 +97,6 @@
             <hr>
             <h6>Item yang Dikirim</h6>
             <div class="item-list" data-index="${index}"></div>
-            <button type="button" class="btn btn-sm btn-outline-success mt-2 add-item-btn" data-index="${index}">+ Tambah Item</button>
         </div>
         `;
         outletList.appendChild(outletBlock);
@@ -127,46 +125,58 @@
         const itemList = document.querySelector(`.item-list[data-index="${outletIndex}"]`);
         const row = document.createElement('div');
         row.classList.add('row', 'mb-2', 'align-items-end');
+
+        // Cari id_barang yang benar dari master data
+        let idBarang = '';
+        let satuan = '';
+        if (itemData) {
+            if (itemData.tipe === 'bsj') {
+                const found = bsjData.find(b => b.nama === itemData.nama_barang);
+                if (found) {
+                    idBarang = found.id;
+                    satuan = found.satuan;
+                } else if (itemData.barang_id) {
+                    idBarang = itemData.barang_id;
+                }
+            } else if (itemData.tipe === 'bahan') {
+                const found = bahanData.find(b => b.nama === itemData.nama_barang);
+                if (found) {
+                    idBarang = found.id;
+                    satuan = found.satuan;
+                } else if (itemData.barang_id) {
+                    idBarang = itemData.barang_id;
+                }
+            }
+        }
+
         row.innerHTML = `
         <div class="col-md-2">
             <label>Jenis</label>
-            <select name="outlet[${outletIndex}][items][${itemIndex}][jenis]" class="form-control jenis-select" required>
-                <option value="">Pilih</option>
-                <option value="bsj" ${itemData && itemData.tipe === 'bsj' ? 'selected' : ''}>BSJ</option>
-                <option value="bahan" ${itemData && itemData.tipe === 'bahan' ? 'selected' : ''}>Bahan</option>
-            </select>
+            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][jenis]" value="${itemData ? itemData.tipe : ''}">
+            <input type="text" class="form-control" value="${itemData ? (itemData.tipe === 'bsj' ? 'BSJ' : (itemData.tipe === 'bahan' ? 'Bahan' : '')) : ''}" readonly>
         </div>
         <div class="col-md-3">
             <label>Nama Barang</label>
-            <select name="outlet[${outletIndex}][items][${itemIndex}][id_barang]" class="form-control barang-select" required>
-                <option value="">Pilih Barang</option>
-            </select>
-            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][nama_barang]" class="input-nama-barang" value="${itemData ? itemData.nama_barang : ''}">
+            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][id_barang]" value="${idBarang}">
+            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][nama_barang]" value="${itemData ? itemData.nama_barang : ''}">
+            <input type="text" class="form-control" value="${itemData ? itemData.nama_barang : ''}" readonly>
         </div>
         <div class="col-md-2">
             <label>Jumlah</label>
-            <input type="number" name="outlet[${outletIndex}][items][${itemIndex}][jumlah]" class="form-control" required min="1" value="${itemData ? itemData.jumlah : ''}">
+            <input type="number" name="outlet[${outletIndex}][items][${itemIndex}][jumlah]" class="form-control" required min="1" value="${itemData ? itemData.jumlah : ''}" readonly>
         </div>
         <div class="col-md-2">
             <label>Satuan</label>
-            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][satuan]" class="input-satuan" value="${itemData ? itemData.satuan : ''}">
-            <input type="text" class="form-control satuan" value="${itemData ? itemData.satuan : ''}" disabled>
+            <input type="hidden" name="outlet[${outletIndex}][items][${itemIndex}][satuan]" value="${satuan || (itemData ? itemData.satuan : '')}">
+            <input type="text" class="form-control" value="${satuan || (itemData ? itemData.satuan : '')}" readonly>
         </div>
+        <?php if (in_groups('admin')) : ?>
         <div class="col-md-2">
             <button type="button" class="btn btn-danger btn-sm remove-item-btn">Hapus</button>
         </div>
+        <?php endif; ?>
         `;
         itemList.appendChild(row);
-        // Populate barang-select jika ada data
-        const jenisSelect = row.querySelector('.jenis-select');
-        const barangSelect = row.querySelector('.barang-select');
-        if (itemData) {
-            let dataArr = itemData.tipe === 'bsj' ? bsjData : bahanData;
-            barangSelect.innerHTML = '<option value="">Pilih Barang</option>';
-            dataArr.forEach(barang => {
-                barangSelect.innerHTML += `<option value="${barang.id}" data-satuan="${barang.satuan}" ${itemData.barang_id == barang.id ? 'selected' : ''}>${barang.nama}</option>`;
-            });
-        }
     }
 </script>
 

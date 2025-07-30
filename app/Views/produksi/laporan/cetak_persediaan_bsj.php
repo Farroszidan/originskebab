@@ -1,87 +1,109 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 
 <head>
     <meta charset="UTF-8">
-    <title>Cetak Laporan Persediaan BSJ</title>
+    <title>Laporan Persediaan BSJ</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            font-size: 13px;
         }
 
-        .header {
+        h2 {
             text-align: center;
-            margin-bottom: 20px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
-            margin-top: 10px;
+            margin-top: 20px;
         }
 
         th,
         td {
-            border: 1px solid #000;
-            padding: 6px;
+            border: 1px solid #333;
+            padding: 8px;
             text-align: center;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        @media print {
+            button {
+                display: none;
+            }
         }
     </style>
 </head>
 
 <body onload="window.print()">
-
-    <div class="header">
-        <h2><b>ORIGINS KEBAB</b></h2>
-        <p>Gedawang Permai I No.1e, Gedawang, Kec. Banyumanik, Kota Semarang</p>
-        <h4><u>Laporan Persediaan BSJ</u></h4>
-        <p>Periode: <?= date('d-m-Y', strtotime($start)) ?> s/d <?= date('d-m-Y', strtotime($end)) ?></p>
+    <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 1rem; position: relative; padding: 1.5rem 0;">
+        <div class="header-logo" style="position: absolute; left: 5rem;">
+            <img src="<?= base_url('img/img-login.png') ?>" alt="Origins Kebab Logo" style="height: 120px; width: auto;">
+        </div>
+        <div class="header-text" style="text-align: center;">
+            <h1 style="margin:0;font-weight:600;font-size:1.8rem;">Origins Kebab</h1>
+            <h4 style="margin:0;font-weight:600;font-size:1.2rem;margin-top:0.2rem;">Laporan Persediaan BSJ</h4>
+            <div class="date-range" style="font-size:0.95rem;color:#555;margin-top:0.2rem;">
+                Periode: <?= isset($start) ? date('Y-m-d', strtotime($start)) : '-' ?> s/d <?= isset($end) ? date('Y-m-d', strtotime($end)) : '-' ?>
+            </div>
+        </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>No</th>
-                <th>Kode</th>
-                <th>Nama</th>
-                <th>Satuan</th>
-                <th>Jumlah Masuk</th>
-                <th>Jumlah Keluar</th>
-                <th>Sisa Akhir</th>
+    <table class="table table-bordered table-striped" style="width:100%; margin-top:20px; font-size:13px;">
+        <thead class="thead-light">
+            <tr class="align-middle">
+                <th class="text-left" style="width:40px;">No</th>
+                <th class="text-left" style="width:160px;">Nama BSJ</th>
+                <th class="text-left" style="width:80px;">Satuan</th>
+                <th class="text-right" style="width:100px;">Stok Awal</th>
+                <th class="text-right" style="width:100px;">Barang Masuk</th>
+                <th class="text-right" style="width:100px;">Barang Keluar</th>
+                <th class="text-right" style="width:100px;">Stok Akhir</th>
+                <th class="text-right" style="width:120px;">Harga Satuan Rata-rata</th>
+                <th class="text-right" style="width:120px;">Saldo Akhir</th>
             </tr>
         </thead>
         <tbody>
             <?php
-            $no = 1;
-            foreach ($bsj as $b) {
-                $masuk = 0;
-                $keluar = 0;
-                foreach ($kartu as $k) {
-                    if ($k['bsj_id'] == $b['id']) {
-                        if ($k['jenis'] == 'masuk') {
-                            $masuk += $k['jumlah'];
-                        } elseif ($k['jenis'] == 'keluar') {
-                            $keluar += $k['jumlah'];
-                        }
-                    }
-                }
-                $sisa = $masuk - $keluar;
+            $totalStokAkhir = 0;
+            $totalSaldoAkhir = 0;
+            if (isset($bsjData) && is_array($bsjData) && count($bsjData) > 0) {
+                $no = 1;
+                foreach ($bsjData as $row) {
+                    $totalStokAkhir += $row['stok_akhir'];
+                    $totalSaldoAkhir += $row['saldo_akhir'];
             ?>
+                    <tr>
+                        <td><?= $no++ ?></td>
+                        <td><?= esc($row['nama']) ?></td>
+                        <td><?= esc($row['satuan']) ?></td>
+                        <td class="text-right"><?= number_format($row['stok_awal'], 2) ?></td>
+                        <td class="text-right"><?= number_format($row['masuk'], 2) ?></td>
+                        <td class="text-right"><?= number_format($row['keluar'], 2) ?></td>
+                        <td class="text-right"><?= number_format($row['stok_akhir'], 2) ?></td>
+                        <td class="text-right">Rp <?= number_format($row['harga_avg'], 2, ',', '.') ?></td>
+                        <td class="text-right">Rp <?= number_format($row['saldo_akhir'], 2, ',', '.') ?></td>
+                    </tr>
+                <?php
+                }
+            } else {
+                ?>
                 <tr>
-                    <td><?= $no++; ?></td>
-                    <td><?= esc($b['kode']); ?></td>
-                    <td><?= esc($b['nama']); ?></td>
-                    <td><?= esc($b['satuan']); ?></td>
-                    <td><?= number_format($masuk); ?></td>
-                    <td><?= number_format($keluar); ?></td>
-                    <td><?= number_format($sisa); ?></td>
+                    <td colspan="9" class="text-center">Data tidak tersedia</td>
                 </tr>
             <?php } ?>
         </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="6" class="text-right">Total Stok Akhir</th>
+                <th class="text-right"><?= number_format($totalStokAkhir, 2) ?></th>
+                <th class="text-right" colspan="2">Total Saldo Akhir: Rp <?= number_format($totalSaldoAkhir, 2, ',', '.') ?></th>
+            </tr>
+        </tfoot>
     </table>
-
 </body>
 
 </html>

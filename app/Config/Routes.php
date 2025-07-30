@@ -217,24 +217,28 @@ $routes->post('admin/pemasok/update/(:num)', 'Admin::updatePemasok/$1', ['filter
 $routes->get('admin/pemasok/delete/(:num)', 'Admin::hapusPemasok/$1', ['filter' => 'role:admin']);
 
 //ADMIN BIAYA
-$routes->get('admin/biaya/view_tenaker', 'Admin::biayaTNK', ['filter' => 'role:admin']);
-$routes->get('admin/biaya/view_bop', 'Admin::biayaBOP', ['filter' => 'role:admin']);
-$routes->post('admin/biaya/simpan', 'Admin::simpanTNK', ['filter' => 'role:admin']);
-$routes->post('admin/biaya/simpanBOP', 'Admin::simpanBOP', ['filter' => 'role:admin']);
-$routes->get('admin/biaya/detailBOP/(:num)', 'Admin::detailBOP/$1', ['filter' => 'role:admin']);
-$routes->post('admin/biaya/updateBOP/(:num)', 'Admin::updateBOP/$1', ['filter' => 'role:admin']);
-$routes->post('admin/biaya/updateTNK/(:num)', 'Admin::updateTNK/$1', ['filter' => 'role:admin']);
-$routes->post('admin/biaya/updateBOP/(:num)', 'Admin::updateBOP/$1', ['filter' => 'role:admin']);
-$routes->get('admin/biaya/delete/(:num)', 'Admin::hapusTNK/$1', ['filter' => 'role:admin']);
-$routes->get('admin/biaya/deleteBOP/(:num)', 'Admin::hapusBOP/$1', ['filter' => 'role:admin']);
+$routes->group('admin/biaya', ['filter' => 'role:admin,keuangan'], function ($routes) {
+    $routes->get('view_tenaker', 'Admin::biayaTNK');
+    $routes->get('view_bop', 'Admin::biayaBOP');
+    $routes->post('simpan', 'Admin::simpanTNK');
+    $routes->post('simpanBOP', 'Admin::simpanBOP');
+    $routes->get('detailBOP/(:num)', 'Admin::detailBOP/$1');
+    $routes->post('updateBOP/(:num)', 'Admin::updateBOP/$1');
+    $routes->post('updateTNK/(:num)', 'Admin::updateTNK/$1');
+    $routes->post('updateBOP/(:num)', 'Admin::updateBOP/$1');
+    $routes->get('delete/(:num)', 'Admin::hapusTNK/$1');
+    $routes->get('deleteBOP/(:num)', 'Admin::hapusBOP/$1');
+});
 
 //ADMIN KOMPOSISI
-$routes->get('admin/komposisi', 'Admin::komposisiIndex', ['filter' => 'role:admin']);
-$routes->get('admin/komposisi/tambah', 'Admin::komposisiTambah', ['filter' => 'role:admin']);
-$routes->post('admin/komposisi/simpan', 'Admin::komposisiSimpan', ['filter' => 'role:admin']);
-$routes->get('admin/komposisi/edit/(:num)', 'Admin::editKomposisi/$1', ['filter' => 'role:admin']);
-$routes->post('admin/komposisi/update', 'Admin::updateKomposisi', ['filter' => 'role:admin']);
-$routes->get('admin/komposisi/hapus/(:num)', 'Admin::hapusKomposisi/$1', ['filter' => 'role:admin']);
+$routes->group('admin/komposisi', ['filter' => 'role:admin,produksi'], function ($routes) {
+    $routes->get('/', 'Admin::komposisiIndex');
+    $routes->get('tambah', 'Admin::komposisiTambah');
+    $routes->post('simpan', 'Admin::komposisiSimpan');
+    $routes->get('edit/(:num)', 'Admin::editKomposisi/$1');
+    $routes->post('update', 'Admin::updateKomposisi');
+    $routes->get('hapus/(:num)', 'Admin::hapusKomposisi/$1');
+});
 
 // ADMIN PERINTAH KERJA PRODUKSI BSJ
 $routes->group('admin/perintah-kerja', ['filter' => 'role:admin'], function ($routes) {
@@ -243,7 +247,17 @@ $routes->group('admin/perintah-kerja', ['filter' => 'role:admin'], function ($ro
     $routes->post('simpan', 'Admin::perintahKerjaSimpan');
     $routes->get('detail/(:num)', 'Admin::perintahKerjaDetail/$1');
     $routes->get('hapus/(:num)', 'Admin::perintahKerjaHapus/$1');
+    $routes->get('kekurangan-per-outlet', 'Admin::kekuranganBahanPerOutlet');
+    $routes->post('simpan-rangkuman', 'Admin::simpanRangkumanKekurangan');
+    $routes->post('hitung-kebutuhan-bahan', 'Admin::hitungKebutuhanBahan');
+    $routes->get('getRangkumanBatchJson', 'Admin::getRangkumanBatchJson');
+    $routes->get('getKekuranganPerOutletJson', 'Admin::getKekuranganPerOutletJson');
 });
+
+$routes->post('admin/hitung-kebutuhan-bahan', 'Admin::hitungKebutuhanBahan');
+$routes->get('/admin/perintah-kerja/generate', 'AdminController::generatePerintahKerjaOtomatis');
+$routes->get('admin/prosesOtomatisPerintahKerja', 'Admin::prosesOtomatisPerintahKerja');
+$routes->get('admin/lihat-kekurangan-bsj', 'Admin::lihatKekuranganBSJ');
 
 // ADMIN PERINTAH PENGIRIMAN
 $routes->group('admin/perintah-pengiriman', ['filter' => 'role:admin'], function ($routes) {
@@ -259,7 +273,7 @@ $routes->group('admin/perintah-pengiriman', ['filter' => 'role:admin'], function
 });
 
 // PRODUKSI PEMBELIAN
-$routes->group('produksi', ['filter' => 'role:produksi'], function ($routes) {
+$routes->group('produksi', ['filter' => 'role:produksi,admin'], function ($routes) {
     $routes->get('pembelian', 'Produksi::pembelianIndex');
     $routes->get('pembelian/tambah', 'Produksi::pembelianInput');
     $routes->post('pembelian/simpan', 'Produksi::pembelianSimpan');
@@ -287,9 +301,9 @@ $routes->group('produksi/persediaan', ['filter' => 'role:produksi,admin'], funct
 //BSJ
 $routes->group('produksi/persediaan/bsj', ['filter' => 'role:produksi,admin'], function ($routes) {
     $routes->get('/', 'Produksi::bsj');
-    $routes->get('tambah', 'Produksi::tambahBSJ');
+    $routes->get('tambah_bsj', 'Produksi::tambahBSJ');
     $routes->post('simpan', 'Produksi::simpanBSJ');
-    $routes->get('edit/(:num)', 'Produksi::editBSJ/$1');
+    $routes->get('edit_bsj/(:num)', 'Produksi::editBSJ/$1');
     $routes->post('update/(:num)', 'Produksi::updateBSJ/$1');
     $routes->get('delete/(:num)', 'Produksi::hapusBSJ/$1');
 });

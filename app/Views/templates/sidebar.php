@@ -124,8 +124,10 @@
                     <a class="collapse-item" href="<?= base_url('produksi/hpp'); ?>">HPP BSJ</a>
                     <h6 class="collapse-header">Persediaan:</h6>
                     <a class="collapse-item" href="<?= base_url('produksi/persediaan'); ?>">Bahan</a>
-                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj/'); ?>">Barang Setengah Jadi</a>
+                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj/'); ?>">BSJ</a>
                     <a class="collapse-item" href="<?= base_url('produksi/pengiriman'); ?>">Pengiriman</a>
+                    <h6 class="collapse-header">Komposisi:</h6>
+                    <a class="collapse-item" href="<?= base_url('admin/komposisi'); ?>">Komposisi</a>
                 </div>
             </div>
             <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseLaporan"
@@ -304,7 +306,7 @@
                     <a class="collapse-item" href="<?= base_url('produksi/hpp'); ?>">HPP BSJ</a>
                     <h6 class="collapse-header">Persediaan:</h6>
                     <a class="collapse-item" href="<?= base_url('produksi/persediaan'); ?>">Bahan</a>
-                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj/'); ?>">Barang Setengah Jadi</a>
+                    <a class="collapse-item" href="<?= base_url('produksi/persediaan/bsj/'); ?>">BSJ</a>
                     <a class="collapse-item" href="<?= base_url('produksi/pengiriman'); ?>">Pengiriman</a>
                 </div>
             </div>
@@ -363,6 +365,18 @@
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/hppPenjualan'); ?>">
                         <i class="fas fa-fw fa-balance-scale text-warning mr-1"></i> HPP Penjualan
                     </a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_pembelian'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-primary"></i> Cetak Laporan Pembelian
+                    </a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_persediaan_bahan'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-success"></i> Cetak Laporan Persediaan Bahan
+                    </a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_persediaan_bsj'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-warning"></i> Cetak Laporan Persediaan BSJ
+                    </a>
+                    <a class="collapse-item" href="<?= base_url('produksi/laporan/form_cetak_produksi'); ?>">
+                        <i class="fas fa-fw fa-print mr-1 text-info"></i> Cetak Laporan Produksi
+                    </a>
                 </div>
             </div>
         </li>
@@ -384,7 +398,6 @@
                     <a class="collapse-item" href="<?= base_url('admin/pemasok'); ?>">Tambah Pemasok</a>
                     <a class="collapse-item" href="<?= base_url('admin/biaya/view_tenaker'); ?>">Tambah Biaya Tenaga Kerja</a>
                     <a class="collapse-item" href="<?= base_url('admin/biaya/view_bop'); ?>">Tambah BOP</a>
-                    <a class="collapse-item" href="<?= base_url('admin/komposisi'); ?>">Komposisi</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/hpp'); ?>">Hpp</a>
                     <a class="collapse-item" href="<?= base_url('manajemen-penjualan/jadwalpegawai'); ?>">Jadwal Pegawai</a>
 

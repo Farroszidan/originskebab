@@ -2,21 +2,19 @@
 <?= $this->section('page-content'); ?>
 
 <div class="container mt-4">
-    <h4 class="mb-4">Filter Cetak Laporan Produksi</h4>
+    <h4 class="mb-3">Form Cetak Laporan Produksi</h4>
 
-    <form action="<?= base_url('produksi/laporan/cetak_produksi'); ?>" method="get" target="_blank">
-        <div class="row mb-3">
-            <div class="col-md-4">
-                <label for="start" class="form-label">Tanggal Awal</label>
-                <input type="date" name="start" id="start" class="form-control" required value="<?= date('Y-m-01'); ?>">
-            </div>
-            <div class="col-md-4">
-                <label for="end" class="form-label">Tanggal Akhir</label>
-                <input type="date" name="end" id="end" class="form-control" required value="<?= date('Y-m-d'); ?>">
-            </div>
-            <div class="col-md-4 d-flex align-items-end">
-                <button type="submit" class="btn btn-dark">Cetak Laporan</button>
-            </div>
+    <form method="get" action="<?= base_url('produksi/laporan/cetak_produksi'); ?>" class="row g-3">
+        <div class="col-md-4">
+            <label for="start">Tanggal Mulai</label>
+            <input type="date" class="form-control" id="start" name="start" required value="<?= date('Y-m-01'); ?>">
+        </div>
+        <div class="col-md-4">
+            <label for="end">Tanggal Akhir</label>
+            <input type="date" class="form-control" id="end" name="end" required value="<?= date('Y-m-d'); ?>">
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary">Tampilkan</button>
         </div>
     </form>
 </div>

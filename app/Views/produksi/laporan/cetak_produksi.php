@@ -42,11 +42,17 @@
 </head>
 
 <body onload="window.print()">
-    <div class="header">
-        <h2><b>ORIGINS KEBAB</b></h2>
-        <p>Gedawang Permai I No.1e, Gedawang, Kec. Banyumanik, Kota Semarang, Jawa Tengah 50266</p>
-        <h4><u>Laporan Produksi</u></h4>
-        <p>Periode: <?= date('Y-m-d', strtotime($start)) ?> s/d <?= date('Y-m-d', strtotime($end)) ?></p>
+    <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 1rem; position: relative; padding: 1.5rem 0;">
+        <div class="header-logo" style="position: absolute; left: 5rem;">
+            <img src="<?= base_url('img/img-login.png') ?>" alt="Origins Kebab Logo" style="height: 120px; width: auto;">
+        </div>
+        <div class="header-text" style="text-align: center;">
+            <h1 style="margin:0;font-weight:600;font-size:1.8rem;">Origins Kebab</h1>
+            <h4 style="margin:0;font-weight:600;font-size:1.2rem;margin-top:0.2rem;">Laporan Produksi</h4>
+            <div class="date-range" style="font-size:0.95rem;color:#555;margin-top:0.2rem;">
+                Periode: <?= date('Y-m-d', strtotime($start)) ?> s/d <?= date('Y-m-d', strtotime($end)) ?>
+            </div>
+        </div>
     </div>
 
     <table>

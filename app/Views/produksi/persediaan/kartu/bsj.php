@@ -63,12 +63,20 @@
                         $masuk_qty = $row['jenis'] == 'masuk' ? $row['masuk_qty'] : 0;
                         $keluar_qty = $row['jenis'] == 'keluar' ? $row['keluar_qty'] : 0;
                         $harga = $row['harga_satuan'] ?? 0;
+                        // Track last masuk harga for keluar
+                        static $last_masuk_harga = 0;
                         if ($row['jenis'] == 'masuk') {
                             $saldo_qty += $masuk_qty;
                             $saldo_harga += $masuk_qty * $harga;
+                            $last_masuk_harga = $harga;
                         } else {
                             $saldo_qty -= $keluar_qty;
-                            $saldo_harga -= $keluar_qty * $harga;
+                            // Use last masuk harga for keluar
+                            $saldo_harga -= $keluar_qty * $last_masuk_harga;
+                        }
+                        // If saldo_qty is 0, saldo_harga should also be 0
+                        if ($saldo_qty == 0) {
+                            $saldo_harga = 0;
                         }
                     ?>
                         <tr>
@@ -76,13 +84,13 @@
                             <td><?= esc($row['tanggal']); ?></td>
                             <td><?= esc($row['keterangan']); ?></td>
                             <td><?= number_format($masuk_qty); ?></td>
-                            <td><?= number_format($row['harga_satuan'], 0, ',', '.'); ?></td>
-                            <td><?= number_format($masuk_qty * $row['harga_satuan'], 0, ',', '.'); ?></td>
+                            <td><?= number_format($row['jenis'] == 'masuk' ? $harga : ($last_masuk_harga ?? $harga), 0, ',', '.'); ?></td>
+                            <td><?= number_format($masuk_qty * $harga, 0, ',', '.'); ?></td>
                             <td><?= number_format($keluar_qty); ?></td>
-                            <td><?= number_format($row['harga_satuan'], 0, ',', '.'); ?></td>
-                            <td><?= number_format($keluar_qty * $row['harga_satuan'], 0, ',', '.'); ?></td>
+                            <td><?= number_format($row['jenis'] == 'keluar' ? ($last_masuk_harga ?? $harga) : $harga, 0, ',', '.'); ?></td>
+                            <td><?= number_format($keluar_qty * ($last_masuk_harga ?? $harga), 0, ',', '.'); ?></td>
                             <td><?= number_format($saldo_qty); ?></td>
-                            <td><?= number_format($row['harga_satuan'], 0, ',', '.'); ?></td>
+                            <td><?= number_format($saldo_qty == 0 ? 0 : ($last_masuk_harga ?? $harga), 0, ',', '.'); ?></td>
                             <td><?= number_format($saldo_harga, 0, ',', '.'); ?></td>
                         </tr>
                     <?php endforeach; ?>

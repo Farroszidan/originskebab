@@ -57,4 +57,38 @@ class PersediaanOutletModel extends Model
 
         return $stok ? (int)$stok['stok'] : 0;
     }
+
+    public function getStokOutlet($outletId, $kodeBahan)
+    {
+        $data = $this->where([
+            'outlet_id' => $outletId,
+            'kode_bahan' => $kodeBahan
+        ])->first();
+
+        return $data ? $data['stok'] : 0;
+    }
+
+    public function getStokByOutlet($outletId)
+    {
+        return $this->where('outlet_id', $outletId)->findAll();
+    }
+
+    public function getStokBahan($outletId, $kodeBahan)
+    {
+        return $this->where(['outlet_id' => $outletId, 'kode_bahan' => $kodeBahan])->first();
+    }
+
+    public function getStokSemuaBahan($outlet_id)
+    {
+        return $this->where('outlet_id', $outlet_id)
+            ->findAll();
+    }
+
+    public function getStokAkhirByOutlet($outlet_id)
+    {
+        return $this->select('bahan.id as id_bahan, persediaan_outlet.stok')
+            ->join('bahan', 'bahan.kode = persediaan_outlet.kode_bahan')
+            ->where('persediaan_outlet.outlet_id', $outlet_id)
+            ->findAll();
+    }
 }

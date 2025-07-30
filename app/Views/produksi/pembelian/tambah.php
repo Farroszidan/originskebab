@@ -29,7 +29,7 @@
             </div>
         </div>
 
-
+        <div id="container-bukti-transaksi"></div>
         <div class="card mb-4">
             <div class="card-header">Detail Bahan yang Dibeli</div>
             <div class="card-body" id="container-bahan">
@@ -111,8 +111,7 @@
                     <option value="tunai">Tunai</option>
                     <option value="kredit">Kredit</option>
                 </select>
-                <label class="mt-2">Bukti Transaksi</label>
-                <input type="file" name="bukti_transaksi[]" class="form-control-file">
+                
             </div>
         </div>`;
 
@@ -171,6 +170,7 @@
         row.querySelector('.subtotal').value = '';
         // Set pemasok & tipe pembayaran otomatis
         if (data.nama) setPemasokTipe(count - 1, data.nama);
+        renderBuktiTransaksi();
     }
 
     // Inisialisasi bahan dari perintah kerja (jika ada)
@@ -227,6 +227,46 @@
             row.querySelector('.subtotal').value = formatRupiah(subtotal);
             hitungTotal();
         }
+        if (e.target.classList.contains('pemasok-select')) {
+            renderBuktiTransaksi();
+        }
+    });
+
+    // Render input bukti transaksi sesuai pemasok unik yang dipilih
+    function renderBuktiTransaksi() {
+        // Ambil semua pemasok yang dipilih
+        const pemasokIds = Array.from(document.querySelectorAll('.pemasok-select')).map(sel => sel.value).filter(v => v);
+        // Ambil nama pemasok dari option
+        const pemasokNames = Array.from(document.querySelectorAll('.pemasok-select')).map(sel => {
+            const opt = sel.options[sel.selectedIndex];
+            return opt ? opt.textContent.trim() : '';
+        });
+        // Gabungkan id dan nama
+        let pemasokUnik = [];
+        pemasokIds.forEach((id, i) => {
+            if (id && !pemasokUnik.some(p => p.id === id)) {
+                pemasokUnik.push({
+                    id,
+                    nama: pemasokNames[i]
+                });
+            }
+        });
+        // Tampilkan input file hanya untuk pemasok unik
+        const container = document.getElementById('container-bukti-transaksi');
+        container.innerHTML = '';
+        pemasokUnik.forEach((p, idx) => {
+            container.innerHTML += `
+                <div class="form-group">
+                    <label>Bukti Transaksi untuk Pemasok <strong>${p.nama}</strong></label>
+                    <input type="file" name="bukti_transaksi_${p.id}" class="form-control-file">
+                </div>
+            `;
+        });
+    }
+
+    // Render awal input bukti transaksi
+    document.addEventListener('DOMContentLoaded', function() {
+        renderBuktiTransaksi();
     });
 
     // Hitung total pembelian keseluruhan

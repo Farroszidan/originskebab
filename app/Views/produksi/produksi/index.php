@@ -48,7 +48,9 @@
                                     <a href="<?= base_url('produksi/produksi/updateStatus/' . $p['id'] . '/selesai'); ?>" class="btn btn-success btn-sm" onclick="return confirm('Selesaikan produksi ini?');">Selesaikan</a>
                                     <a href="<?= base_url('produksi/produksi/updateStatus/' . $p['id'] . '/dibatalkan'); ?>" class="btn btn-secondary btn-sm" onclick="return confirm('Batalkan produksi ini?');">Batalkan</a>
                                 <?php endif; ?>
-                                <a href="<?= base_url('produksi/produksi/hapus/' . $p['id']); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus produksi ini?');">Hapus</a>
+                                <?php if (in_groups('admin')): ?>
+                                    <a href="<?= base_url('produksi/produksi/hapus/' . $p['id']); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus produksi ini?');">Hapus</a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
